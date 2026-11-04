@@ -1,0 +1,18 @@
+{
+  "name": "holdem-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "5인 텍사스 홀덤 — 링크로 입장, 닉네임+PIN 칩 저장, 랭킹, 파산 복구",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.1"
+  }
+}
