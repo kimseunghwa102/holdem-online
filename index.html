@@ -78,7 +78,7 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 /* ---------- game shell ---------- */
 .game{--rw:clamp(12px,3.4vmin,22px);--bw:clamp(36px,11.2vw,60px);--hw:clamp(24px,6.6vw,34px);--av:clamp(42px,12vw,56px);--cs:clamp(15px,4.4vw,21px);--mw:clamp(62px,17.5vw,86px);
   flex:1;display:flex;flex-direction:column;min-height:0}
-.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:4px}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;padding-bottom:4px}
 .brand b{display:block;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:22px;color:var(--gold);line-height:1}
 .brand b span{font-family:var(--f-body);font-style:normal;font-weight:700;font-size:16px;color:var(--ink);margin-left:6px}
 .brand small{display:block;font-family:var(--f-num);font-size:11.5px;letter-spacing:.08em;color:var(--dim);margin-top:5px}
@@ -86,10 +86,18 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 .tbtn{height:34px;min-width:34px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .tbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tbtn.icon{padding:0}
+/* TOP 5 strip: its own row on phones, inside the header row on wide screens */
+.lb{order:3;flex:1 0 100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;padding:2px;border-radius:12px;background:rgba(0,0,0,.32);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.lb:empty{display:none}
+.lbc{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:1px 4px;padding:3px 6px;border-radius:10px;min-width:0}
+.lbc .medal{width:14px;height:14px;font-size:9.5px}
+.lbc .tn{font-size:11.5px;font-weight:600;line-height:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbc b{grid-column:1/-1;font-family:var(--f-num);font-weight:500;font-size:12.5px;line-height:14px;letter-spacing:.02em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbc.me{background:rgba(232,184,92,.14);box-shadow:inset 0 0 0 1px rgba(232,184,92,.5)}
 
 /* ---------- table ---------- */
 .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding-block:6px;min-height:0}
-.tw{--ar:.76;--th:57vh;position:relative;width:min(100%,calc(var(--th)*var(--ar)));aspect-ratio:var(--ar);margin-inline:auto}
+.tw{--ar:.76;--th:max(50vh,calc(100vh - 326px));position:relative;width:min(100%,calc(var(--th)*var(--ar)));aspect-ratio:var(--ar);margin-inline:auto}
 .rail{position:absolute;inset:3% 4%;border-radius:999px;
   background:radial-gradient(120% 80% at 50% 0%,var(--rail-hi) 0%,var(--rail-2) 42%,var(--rail) 100%);
   box-shadow:0 30px 70px rgba(0,0,0,.7),0 2px 0 rgba(255,255,255,.07) inset,0 -12px 26px rgba(0,0,0,.6) inset}
@@ -140,6 +148,9 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 .seat.turn .av{box-shadow:0 0 0 2px rgba(0,0,0,.7),0 0 24px rgba(232,184,92,.55),0 8px 16px rgba(0,0,0,.55)}
 .av .on{position:absolute;right:0;bottom:0;width:11px;height:11px;border-radius:50%;background:#5b6068;box-shadow:0 0 0 2px #0d0a08}
 .av .on.y{background:var(--good)}
+.av .medal{position:absolute;left:-7px;top:-7px;z-index:2;text-shadow:none;box-shadow:0 0 0 2px #0d0a08,0 3px 8px rgba(0,0,0,.6)}
+.k3 .av .medal,.k4 .av .medal{left:auto;right:-7px}
+.crown{position:absolute;left:50%;top:calc(var(--av)*-.36);z-index:1;width:calc(var(--av)*.52);aspect-ratio:108/78;transform:translateX(-50%) rotate(-7deg);fill:url(#g-gold);filter:drop-shadow(0 2px 2px rgba(0,0,0,.6));pointer-events:none}
 .plate{position:relative;z-index:1;margin-top:-9px;width:100%;padding:5px 6px 4px;border-radius:10px;text-align:center;
   background:linear-gradient(180deg,rgba(30,23,18,.97),rgba(12,9,7,.97));box-shadow:0 0 0 1px rgba(255,255,255,.1),0 8px 16px rgba(0,0,0,.5)}
 .plate .nm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
@@ -294,6 +305,9 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 @media (min-width:700px) and (min-aspect-ratio:1/1){
   .game{--bw:clamp(46px,5.2vw,68px);--hw:clamp(28px,2.7vw,36px);--av:clamp(48px,4.4vw,60px);--cs:clamp(16px,1.7vw,22px);--mw:clamp(68px,6.4vw,92px)}
   .tw{--ar:1.95;--th:58vh}
+  .lb{order:0;flex:1 1 300px;max-width:560px;margin-inline:auto}
+  .lbc{grid-template-columns:auto minmax(0,1fr) auto;padding:6px 8px}
+  .lbc b{grid-column:auto}
   .k0{--x:50%;--y:91%}.k1{--x:7%;--y:62%}.k2{--x:23%;--y:9%}.k3{--x:77%;--y:9%}.k4{--x:93%;--y:62%}
   .b0{--x:50%;--y:72%}.b1{--x:22%;--y:57%}.b2{--x:32%;--y:31%}.b3{--x:68%;--y:31%}.b4{--x:78%;--y:57%}
   .d0{--x:59%;--y:80%}.d1{--x:15%;--y:44%}.d2{--x:31%;--y:20%}.d3{--x:69%;--y:20%}.d4{--x:85%;--y:44%}
@@ -311,6 +325,8 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
     <symbol id="s-d" viewBox="0 0 100 100"><path d="M50 3C60 22 74 37 90 50 74 63 60 78 50 97 40 78 26 63 10 50 26 37 40 22 50 3z"/></symbol>
     <symbol id="s-s" viewBox="0 0 100 100"><path d="M50 4C62 22 95 38 95 62c0 15-11 25-24 25-9 0-16-4-19-11 1 9 5 16 14 21H34c9-5 13-12 14-21-3 7-10 11-19 11C16 87 5 77 5 62 5 38 38 22 50 4z"/></symbol>
     <symbol id="s-c" viewBox="0 0 100 100"><circle cx="50" cy="28" r="21"/><circle cx="27" cy="58" r="21"/><circle cx="73" cy="58" r="21"/><circle cx="50" cy="50" r="13"/><path d="M45 50h10c0 22 4 34 14 46H31c10-12 14-24 14-46z"/></symbol>
+    <symbol id="s-crown" viewBox="-4 -2 108 78"><path d="M10 60 4 20l24 20L50 8l22 32 24-20-6 40z"/><rect x="10" y="63" width="80" height="10" rx="3"/><circle cx="4" cy="17" r="6"/><circle cx="50" cy="6" r="7"/><circle cx="96" cy="17" r="6"/></symbol>
+    <linearGradient id="g-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".55" stop-color="#e8b85c"/><stop offset="1" stop-color="#b9822c"/></linearGradient>
   </defs>
 </svg>
 
@@ -336,6 +352,7 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
   <section class="game" id="game" hidden>
     <header class="top">
       <div class="brand"><b>GYBM<span>홀덤 테이블</span></b><small id="meta"></small></div>
+      <div class="lb" id="lb" role="button" tabindex="0" aria-label="랭킹 TOP 5 · 누르면 전체 랭킹"></div>
       <div class="tbtns">
         <button class="tbtn icon" id="soundBtn" type="button" aria-label="소리 켜기/끄기"></button>
         <button class="tbtn" id="rankBtn" type="button">랭킹</button>
@@ -361,6 +378,7 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
     <h2>메뉴</h2>
     <div class="notice" id="menuInfo"></div>
     <button type="button" class="sbtn" id="soundToggle"></button>
+    <button type="button" class="sbtn" id="voiceToggle"></button>
     <button type="button" class="sbtn" id="adminOpen">방장 설정</button>
     <button type="button" class="sbtn dng" id="logoutBtn">로그아웃 (이 기기에서)</button>
     <button type="button" class="sbtn" data-close="menuSheet">닫기</button>
@@ -469,13 +487,56 @@ const SND = {
   },
 };
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => SND.ensure(), { passive: true }));
+
+/* ---------------- voice calls (the phone's own text-to-speech, no files) ---------------- */
+const VOICE = {
+  ok: typeof window.speechSynthesis === 'object' && typeof window.SpeechSynthesisUtterance === 'function',
+  on: lsGet('voice') !== '0', ko: null, en: null, primed: false, live: new Set(),
+  load() {
+    if (!this.ok) return;
+    try {
+      const vs = speechSynthesis.getVoices() || [];
+      // natural voices first; Apple's novelty voices (Grandpa, Rocko…) last
+      const score = v => (/yuna|유나|heami|sunhi|injoon|google|samantha|zira|aria|jenny/i.test(v.name) ? 3 : 0) + (v.localService ? 2 : 0)
+        - (/eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley/i.test(v.name) ? 6 : 0);
+      const pick = re => vs.filter(v => re.test(v.lang)).sort((a, b) => score(b) - score(a))[0] || null;
+      this.ko = pick(/^ko/i); this.en = pick(/^en/i);
+    } catch {}
+  },
+  keep(u) { this.live.add(u); const done = () => this.live.delete(u); u.onend = done; u.onerror = done; },
+  prime() { // iPhone only lets a page talk after a tap has started speech once: a silent, empty utterance unlocks it
+    if (!this.ok || this.primed) return;
+    this.primed = true;
+    try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } catch {}
+  },
+  say(ko, en, who) {
+    if (!this.ok || !this.on || !SND.on || document.visibilityState !== 'visible') return;
+    if (!this.ko && !this.en) this.load();
+    const v = this.ko || this.en, n = hue(who || '');
+    const u = new SpeechSynthesisUtterance(this.ko || !this.en ? ko : en);
+    u.lang = this.ko || !this.en ? 'ko-KR' : 'en-US';
+    if (v) u.voice = v;
+    u.pitch = .9 + (n % 6) * .05; u.rate = 1.12; u.volume = 1; // each player keeps a slightly different pitch
+    try {
+      if (this.live.size >= 2) { // never fall behind the table: drop what is still queued
+        speechSynthesis.cancel(); this.live.clear();
+        setTimeout(() => { this.keep(u); speechSynthesis.speak(u); }, 60);
+      } else { this.keep(u); speechSynthesis.speak(u); }
+    } catch {}
+  },
+};
+if (VOICE.ok) { VOICE.load(); try { speechSynthesis.addEventListener('voiceschanged', () => VOICE.load()); } catch {} }
+['touchend', 'click'].forEach(ev => addEventListener(ev, () => VOICE.prime(), { passive: true }));
 const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6"/><path d="M22 9l-5 6"/></svg>';
 function paintSound() {
   $('soundBtn').innerHTML = SND.on ? ICON_ON : ICON_OFF;
   $('soundToggle').textContent = SND.on ? '소리 끄기' : '소리 켜기';
+  $('voiceToggle').hidden = !VOICE.ok;
+  $('voiceToggle').textContent = VOICE.on ? '음성 안내 끄기 (콜·체크·레이즈)' : '음성 안내 켜기 (콜·체크·레이즈)';
 }
 function toggleSound() { SND.on = !SND.on; lsSet('sound', SND.on ? '1' : '0'); paintSound(); if (SND.on) SND.play('chip'); }
+function toggleVoice() { VOICE.on = !VOICE.on; lsSet('voice', VOICE.on ? '1' : '0'); paintSound(); if (VOICE.on) VOICE.say('음성 안내를 켰어요', 'Voice calls on', ''); }
 
 /* ---------------- connection ---------------- */
 const sock = DEMO ? createDemoSocket() : window.io({ reconnectionDelay: 800, reconnectionDelayMax: 5000 });
@@ -583,6 +644,28 @@ function renderLogin() {
   $('ltop').innerHTML = top.length ? `<h3>TOP 3</h3>${top.map((r, i) => `<div class="trow"><span class="medal m${i + 1}">${i + 1}</span><span class="tn">${esc(r.name)}</span><em>${fmt(r.chips)}</em></div>`).join('')}` : '';
 }
 
+/* ---------------- ranking on the table ---------------- */
+// Standings move only between hands, so a big bet doesn't make medals and the TOP 5 jump around mid-hand.
+let RANK = [], lbSig = '';
+function syncRank() { const h = V.hand; if (!RANK.length || !h || h.over) RANK = V.ranking || []; }
+const rankOf = name => RANK.findIndex(r => r.name === name);
+function renderTop5() {
+  const el = $('lb'), list = RANK.slice(0, 5), meName = V.me && V.me.name;
+  const sig = JSON.stringify(list.map(r => [r.name, r.chips])) + '|' + meName;
+  if (sig === lbSig) return;
+  lbSig = sig;
+  const old = {};
+  el.querySelectorAll('.lbc').forEach(c => { old[c.dataset.n] = { x: c.getBoundingClientRect().left, chips: +c.dataset.c }; });
+  el.innerHTML = list.map((r, i) => `<div class="lbc${r.name === meName ? ' me' : ''}" data-n="${esc(r.name)}" data-c="${r.chips}"><span class="medal ${i < 3 ? 'm' + (i + 1) : 'mx'}">${i + 1}</span><span class="tn">${esc(r.name)}</span><b>${fmt(r.chips)}</b></div>`).join('');
+  if (reduceMotion || document.visibilityState !== 'visible' || !el.animate) return;
+  el.querySelectorAll('.lbc').forEach(c => { // slide cells to their new place, flash chips that changed
+    const o = old[c.dataset.n]; if (!o) return;
+    const dx = o.x - c.getBoundingClientRect().left, now = +c.dataset.c;
+    if (Math.abs(dx) > 1) c.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    if (o.chips !== now) c.querySelector('b').animate([{ color: now > o.chips ? '#5fd38d' : '#e3624f' }, { color: '#e8b85c' }], { duration: 1500, easing: 'ease-in' });
+  });
+}
+
 /* ---------------- table render ---------------- */
 let holeSig = {}, betSig = {}, boardShown = [], boardHand = null, mineSig = '', resultFor = null, winShownFor = null;
 function render() {
@@ -603,6 +686,8 @@ function render() {
   }
 
   $('meta').textContent = `블라인드 ${fmt(h ? h.sb : V.cfg.sb)}/${fmt(h ? h.bb : V.cfg.bb)} · 핸드 #${V.handNo}`;
+  syncRank();
+  renderTop5();
   SI.forEach(i => renderSeat(i, kOf(i)));
   SI.forEach(i => renderHole(i, kOf(i)));
   renderBets(kOf, anim && sameHand && h.street === ph.street && !h.over, anim && newHand);
@@ -614,7 +699,7 @@ function render() {
   if (anim && newHand) dealAnimation();
   applyHighlights();
   renderResult(anim, boardDelay);
-  if (anim) logBubbles(ph, h);
+  if (P && P.me) logBubbles(ph, h, anim);
   renderActions();
   if (!$('rankSheet').hidden) renderRank();
   if (!$('menuSheet').hidden) renderMenu();
@@ -644,7 +729,10 @@ function renderSeat(i, k) {
     else if (sd.away) tag = '<div class="tag">자리비움</div>';
     else if (sd.chips === 0 && !(hz && active)) tag = '<div class="tag">파산</div>';
     else if (active && !hz) tag = '<div class="tag">다음 판부터</div>';
-    body = `<div class="av" style="--h:${hue(sd.name)}"><span>${esc(initial(sd.name))}</span><i class="on${sd.online ? ' y' : ''}"></i></div>` +
+    const rk = rankOf(sd.name);
+    const medal = rk >= 0 && rk < 3 ? `<b class="medal m${rk + 1}" title="랭킹 ${rk + 1}위">${rk + 1}</b>` : '';
+    const crown = rk === 0 ? '<svg class="crown" viewBox="-4 -2 108 78" aria-hidden="true"><use href="#s-crown"/></svg>' : '';
+    body = `<div class="av" style="--h:${hue(sd.name)}">${crown}<span>${esc(initial(sd.name))}</span>${medal}<i class="on${sd.online ? ' y' : ''}"></i></div>` +
       `<div class="plate"><div class="nm">${esc(sd.name)}${sd.me ? '<em>나</em>' : ''}</div><div class="st">${fmt(sd.chips)}</div></div>${tag}`;
   }
   if (el._body !== body) { el.querySelector('.sbody').innerHTML = body; el._body = body; }
@@ -806,22 +894,23 @@ function bubble(i, txt, cls) {
   const d = document.createElement('div'); d.className = 'bubble ' + (cls || ''); d.textContent = txt; box.appendChild(d);
   setTimeout(() => d.remove(), 2050);
 }
-function logBubbles(ph, h) {
+function logBubbles(ph, h, anim) {
   if (!h) return;
   const lines = newLines(ph && ph.no === h.no ? ph.log : [], h.log);
   const names = SI.map(i => ({ i, n: nameOf(i) })).filter(x => x.n && x.n !== '?').sort((a, b) => b.n.length - a.n.length);
   lines.forEach(line => line.split(' · ').forEach(part => {
     const m = names.find(x => part.startsWith(x.n + ' ')); if (!m) return;
     const act = part.slice(m.n.length + 1);
-    let txt = null, cls = '', snd = null, mm;
-    if (/폴드|연결 끊김/.test(act)) { txt = '폴드'; cls = 'fold'; snd = 'card'; }
-    else if (/체크/.test(act)) { txt = '체크'; snd = 'knock'; }
-    else if (/올인/.test(act)) { txt = '올인'; cls = 'allin'; }
-    else if (/^콜/.test(act)) txt = '콜';
-    else if ((mm = act.match(/^(벳|레이즈) (\d+)/))) { txt = `${mm[1]} ${fmt(+mm[2])}`; cls = 'raise'; }
+    let txt = null, cls = '', snd = null, say = null, mm;
+    if (/폴드|연결 끊김/.test(act)) { txt = '폴드'; cls = 'fold'; snd = 'card'; say = ['폴드', 'Fold']; }
+    else if (/체크/.test(act)) { txt = '체크'; snd = 'knock'; say = ['체크', 'Check']; }
+    else if (/올인/.test(act)) { txt = '올인'; cls = 'allin'; say = ['올인!', 'All in!']; }
+    else if (/^콜/.test(act)) { txt = '콜'; say = ['콜', 'Call']; }
+    else if ((mm = act.match(/^(벳|레이즈) (\d+)/))) { txt = `${mm[1]} ${fmt(+mm[2])}`; cls = 'raise'; say = [`${mm[1]} ${mm[2]}`, `${mm[1] === '벳' ? 'Bet' : 'Raise to'} ${mm[2]}`]; }
     else if ((mm = act.match(/^(SB|BB) /))) { txt = mm[1]; cls = 'blind'; }
-    if (txt) bubble(m.i, txt, cls);
-    if (snd) SND.play(snd);
+    if (anim && txt) bubble(m.i, txt, cls);
+    if (anim && snd) SND.play(snd);
+    if (say) VOICE.say(say[0], say[1], m.n);
   }));
 }
 
@@ -889,7 +978,7 @@ setInterval(tick, 500);
 
 /* ---------------- sheets ---------------- */
 function renderRank() {
-  const rows = (V.ranking || []).map((r, i) => {
+  const rows = (RANK.length ? RANK : V.ranking || []).map((r, i) => {
     const me = V.me && r.name === V.me.name;
     return `<tr class="${me ? 'me' : ''}"><td><span class="medal ${i < 3 ? 'm' + (i + 1) : 'mx'}">${i + 1}</span></td><td>${esc(r.name)}${r.online ? '<i class="dot"></i>' : ''}</td><td>${fmt(r.chips)}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${fmt(r.net)}</td><td>${r.handsWon}/${r.handsPlayed}</td><td>${r.busts}</td></tr>`;
   }).join('');
@@ -918,7 +1007,10 @@ $('loginForm').addEventListener('submit', async e => {
 document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) $(c.dataset.close).hidden = true; });
 $('soundBtn').addEventListener('click', toggleSound);
 $('soundToggle').addEventListener('click', toggleSound);
+$('voiceToggle').addEventListener('click', toggleVoice);
 $('rankBtn').addEventListener('click', () => { $('rankSheet').hidden = false; renderRank(); });
+$('lb').addEventListener('click', () => { $('rankSheet').hidden = false; renderRank(); });
+$('lb').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('rankSheet').hidden = false; renderRank(); } });
 $('menuBtn').addEventListener('click', () => { $('menuSheet').hidden = false; renderMenu(); });
 $('logoutBtn').addEventListener('click', async () => { await call('logout'); lsSet('token', null); $('menuSheet').hidden = true; show(); });
 $('tw').addEventListener('click', async e => {
@@ -1073,6 +1165,10 @@ function createDemoSocket() {
     S.players[k] = { name, chips: 1000, invested: 1000, busts: 0, recovers: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, bot: true, seat, away: false };
     S.seats[seat] = k;
   });
+  // a few offline regulars so the TOP 5 and the medals have someone to race
+  [['서연', 1840, 1000], ['도윤', 1310, 1500], ['하린', 620, 1000]].forEach(([name, chips, invested]) => {
+    S.players['off:' + name] = { name, chips, invested, busts: invested > 1000 ? 1 : 0, recovers: invested > 1000 ? 1 : 0, handsPlayed: 30, handsWon: 9, bestPot: 640, seat: null, away: false, offline: true };
+  });
   let me = null, turnT = null, nextT = null;
   const listeners = {};
   const fire = (ev, d) => (listeners[ev] || []).slice().forEach(f => { try { f(d); } catch (e) { console.error(e); } });
@@ -1132,7 +1228,7 @@ function createDemoSocket() {
     if (S.seats[seat] === key) S.seats[seat] = null; p.seat = null; p.away = false;
   }
   function ranking() {
-    return Object.values(S.players).map(p => ({ name: p.name, chips: p.chips, net: p.chips - p.invested, busts: p.busts, recovers: p.recovers, handsWon: p.handsWon, handsPlayed: p.handsPlayed, bestPot: p.bestPot, online: true, seated: p.seat != null }))
+    return Object.values(S.players).map(p => ({ name: p.name, chips: p.chips, net: p.chips - p.invested, busts: p.busts, recovers: p.recovers, handsWon: p.handsWon, handsPlayed: p.handsPlayed, bestPot: p.bestPot, online: !p.offline, seated: p.seat != null }))
       .sort((a, b) => b.chips - a.chips || b.net - a.net);
   }
   function view() {
@@ -1167,7 +1263,7 @@ function createDemoSocket() {
         if (!name || Array.from(name).length > 10) return { ok: false, msg: '닉네임은 1~10자로 입력하세요.' };
         if (!/^\d{4}$/.test(String(m.pin || ''))) return { ok: false, msg: 'PIN은 숫자 4자리예요.' };
         const key = 'me:' + name.toLowerCase();
-        if (S.players[key] && S.players[key].bot) return { ok: false, msg: '봇 이름이에요. 다른 닉네임을 써주세요.' };
+        if (Object.entries(S.players).some(([k, x]) => k !== key && x.name.toLowerCase() === name.toLowerCase())) return { ok: false, msg: '이미 있는 닉네임이에요. 다른 닉네임을 써주세요.' };
         const isNew = !S.players[key];
         if (isNew) S.players[key] = { name, chips: S.cfg.start, invested: S.cfg.start, busts: 0, recovers: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, seat: null, away: false };
         me = key; if (!S.admin) S.admin = key;
