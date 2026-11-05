@@ -7,6 +7,7 @@
 - 랭킹 (칩 / 손익 / 승률 / 파산 횟수)
 - 파산하면 시작 칩의 50%로 복구 가능 (관리자가 비율 변경 가능)
 - 차례 제한 시간(기본 30초) 지나면 자동 체크/폴드, 2번 연속이면 자리비움 처리
+- **AI 플레이어 "AI 알파"가 늘 한 자리에 앉아 있음**: 혼자 들어와도 바로 1:1, 4명이 앉으면 자리를 비켜줌, 파산하면 알아서 리바이 (방장 설정에서 끄기 가능, 랭킹엔 안 들어감)
 - **방장 = 맨 처음 가입한 사람** (관리자 비밀번호 필요 없음, 방장 넘기기 가능)
 - 방장 설정: 시작 칩·블라인드·복구 비율·제한 시간, 칩 수정, PIN 초기화, 계정 삭제, 전체 초기화
 
@@ -20,7 +21,7 @@
 1. github.com → 오른쪽 위 **+** → **New repository** → 이름 `holdem-online`, **Private**으로 만들어도 됨 → Create
 2. 생성된 페이지에서 **uploading an existing file** 클릭
 3. 압축 푼 폴더 안의 파일을 전부 끌어다 놓기
-   (`server.js`, `engine.js`, `store.js`, `index.html`, `package.json`, `README.md`, `.gitignore`)
+   (`server.js`, `engine.js`, `ai.js`, `store.js`, `index.html`, `package.json`, `README.md`, `.gitignore`)
 4. **Commit changes**
 
 ### 2. Neon에서 무료 DB 만들기 (칩 저장용)

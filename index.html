@@ -150,6 +150,11 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 .av .on.y{background:var(--good)}
 .av .medal{position:absolute;left:-7px;top:-7px;z-index:2;text-shadow:none;box-shadow:0 0 0 2px #0d0a08,0 3px 8px rgba(0,0,0,.6)}
 .k3 .av .medal,.k4 .av .medal{left:auto;right:-7px}
+.av.botav{background:radial-gradient(circle at 35% 28%,#9be6f2,#1f6f86 72%)}
+.av .bot{width:66%;height:66%;fill:#effbff;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.av .bot .eye{fill:#14506a}
+.av .aitag{position:absolute;left:-8px;top:-6px;z-index:2;padding:3px 5px;border-radius:999px;background:linear-gradient(#b4f0f8,#3aa3bb);color:#04232c;font:600 10px/1 var(--f-num);letter-spacing:.06em;text-shadow:none;box-shadow:0 0 0 2px #0d0a08,0 3px 8px rgba(0,0,0,.6)}
+.k3 .av .aitag,.k4 .av .aitag{left:auto;right:-8px}
 .crown{position:absolute;left:50%;top:calc(var(--av)*-.36);z-index:1;width:calc(var(--av)*.52);aspect-ratio:108/78;transform:translateX(-50%) rotate(-7deg);fill:url(#g-gold);filter:drop-shadow(0 2px 2px rgba(0,0,0,.6));pointer-events:none}
 .plate{position:relative;z-index:1;margin-top:-9px;width:100%;padding:5px 6px 4px;border-radius:10px;text-align:center;
   background:linear-gradient(180deg,rgba(30,23,18,.97),rgba(12,9,7,.97));box-shadow:0 0 0 1px rgba(255,255,255,.1),0 8px 16px rgba(0,0,0,.5)}
@@ -402,6 +407,7 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
         <label class="field">차례 제한(초)<input id="cfgTurn" type="number" inputmode="numeric"></label>
       </div>
       <button type="button" class="sbtn pri" id="cfgSave">설정 저장</button>
+      <button type="button" class="sbtn" id="aiToggle"></button>
       <h3>플레이어 관리</h3>
       <label class="field">닉네임<input id="tgName" list="tgList" maxlength="10" autocomplete="off"></label>
       <datalist id="tgList"></datalist>
@@ -509,7 +515,7 @@ const VOICE = {
     this.primed = true;
     try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } catch {}
   },
-  say(ko, en, who) {
+  say(ko, en, who, robot) {
     if (!this.ok || !this.on || !SND.on || document.visibilityState !== 'visible') return;
     if (!this.ko && !this.en) this.load();
     const v = this.ko || this.en, n = hue(who || '');
@@ -517,6 +523,7 @@ const VOICE = {
     u.lang = this.ko || !this.en ? 'ko-KR' : 'en-US';
     if (v) u.voice = v;
     u.pitch = .9 + (n % 6) * .05; u.rate = 1.12; u.volume = 1; // each player keeps a slightly different pitch
+    if (robot) { u.pitch = .6; u.rate = 1; } // the AI gets a low, steady voice
     try {
       if (this.live.size >= 2) { // never fall behind the table: drop what is still queued
         speechSynthesis.cancel(); this.live.clear();
@@ -705,6 +712,7 @@ function render() {
   if (!$('menuSheet').hidden) renderMenu();
 }
 function nameOf(i) { return (V.seats[i] && V.seats[i].name) || (V.hand && V.hand.ps[i] && V.hand.ps[i].name) || '?'; }
+const BOT_SVG = '<svg class="bot" viewBox="0 0 64 64" aria-hidden="true"><rect x="30" y="3" width="4" height="11" rx="2"/><circle cx="32" cy="5" r="4"/><rect x="11" y="14" width="42" height="36" rx="12"/><rect x="4" y="25" width="6" height="15" rx="3"/><rect x="54" y="25" width="6" height="15" rx="3"/><circle class="eye" cx="24" cy="31" r="5"/><circle class="eye" cx="40" cy="31" r="5"/><rect class="eye" x="23" y="40" width="18" height="4" rx="2"/></svg>';
 function renderSeat(i, k) {
   const el = seatEls[i], sd = V.seats[i], h = V.hand;
   const hz = h && h.ps[i] && h.ps[i].current ? h.ps[i] : null;
@@ -729,10 +737,11 @@ function renderSeat(i, k) {
     else if (sd.away) tag = '<div class="tag">자리비움</div>';
     else if (sd.chips === 0 && !(hz && active)) tag = '<div class="tag">파산</div>';
     else if (active && !hz) tag = '<div class="tag">다음 판부터</div>';
-    const rk = rankOf(sd.name);
-    const medal = rk >= 0 && rk < 3 ? `<b class="medal m${rk + 1}" title="랭킹 ${rk + 1}위">${rk + 1}</b>` : '';
+    const rk = sd.bot ? -1 : rankOf(sd.name);
+    const medal = sd.bot ? '<b class="aitag" title="AI 플레이어">AI</b>' : rk >= 0 && rk < 3 ? `<b class="medal m${rk + 1}" title="랭킹 ${rk + 1}위">${rk + 1}</b>` : '';
     const crown = rk === 0 ? '<svg class="crown" viewBox="-4 -2 108 78" aria-hidden="true"><use href="#s-crown"/></svg>' : '';
-    body = `<div class="av" style="--h:${hue(sd.name)}">${crown}<span>${esc(initial(sd.name))}</span>${medal}<i class="on${sd.online ? ' y' : ''}"></i></div>` +
+    const face = sd.bot ? BOT_SVG : `<span>${esc(initial(sd.name))}</span>`;
+    body = `<div class="av${sd.bot ? ' botav' : ''}" style="--h:${hue(sd.name)}">${crown}${face}${medal}<i class="on${sd.online ? ' y' : ''}"></i></div>` +
       `<div class="plate"><div class="nm">${esc(sd.name)}${sd.me ? '<em>나</em>' : ''}</div><div class="st">${fmt(sd.chips)}</div></div>${tag}`;
   }
   if (el._body !== body) { el.querySelector('.sbody').innerHTML = body; el._body = body; }
@@ -808,8 +817,8 @@ function renderDealer(kOf) {
   el.hidden = false; el.className = 'dealer d' + kOf(b);
 }
 function renderStatus() {
-  const h = V.hand, n = V.seats.filter(Boolean).length;
-  $('status').textContent = !h ? (n < 2 ? '2명 이상 앉으면 시작해요' : '곧 시작해요') : h.over ? '' : STREETS[h.street];
+  const h = V.hand, n = V.seats.filter(Boolean).length, onlyBot = n === 1 && V.seats.some(s => s && s.bot);
+  $('status').textContent = !h ? (onlyBot ? '앉으면 AI와 바로 시작' : n < 2 ? '2명 이상 앉으면 시작해요' : '곧 시작해요') : h.over ? '' : STREETS[h.street];
 }
 function renderMine(deal) {
   const me = V.me, h = V.hand, s = me.seat;
@@ -910,7 +919,7 @@ function logBubbles(ph, h, anim) {
     else if ((mm = act.match(/^(SB|BB) /))) { txt = mm[1]; cls = 'blind'; }
     if (anim && txt) bubble(m.i, txt, cls);
     if (anim && snd) SND.play(snd);
-    if (say) VOICE.say(say[0], say[1], m.n);
+    if (say) VOICE.say(say[0], say[1], m.n, !!(V.seats[m.i] && V.seats[m.i].bot));
   }));
 }
 
@@ -947,7 +956,8 @@ function renderActions() {
     html += `<div class="wait"><span>${ent.map(([i, a]) => `${esc(nameOf(+i))} +${fmt(a)}`).join(' · ')}</span><span class="tm" id="nextTimer"></span></div>`;
   } else if (!me.canRecover) {
     const n = V.seats.filter(Boolean).length;
-    html += `<div class="wait"><span>${n} / 5명 착석${n < 2 ? ' · 친구를 기다리는 중' : ''}</span><span class="tm" id="nextTimer"></span></div>`;
+    const onlyBot = n === 1 && V.seats.some(s => s && s.bot);
+    html += `<div class="wait"><span>${n} / 5명 착석${onlyBot ? ' · AI가 기다리는 중' : n < 2 ? ' · 친구를 기다리는 중' : ''}</span><span class="tm" id="nextTimer"></span></div>`;
   }
   box.innerHTML = html;
   tick();
@@ -1057,8 +1067,11 @@ async function adminCheck() {
   $('adMsg').textContent = '';
   $('adOwner').textContent = `현재 방장: ${r.owner || '없음'} · 설정은 다음 판부터 적용돼요.`;
   const c = r.cfg; $('cfgStart').value = c.start; $('cfgSb').value = c.sb; $('cfgBb').value = c.bb; $('cfgRec').value = c.recoverPct; $('cfgTurn').value = c.turnSecs;
+  $('aiToggle').hidden = DEMO; ui.aiOn = !!c.ai;
+  $('aiToggle').textContent = c.ai ? 'AI 플레이어 켜짐 · 누르면 끄기' : 'AI 플레이어 꺼짐 · 누르면 켜기';
   $('tgList').innerHTML = r.names.map(n => `<option value="${esc(n)}">`).join('');
 }
+$('aiToggle').addEventListener('click', async () => { const r = await adm({ op: 'ai', on: !ui.aiOn }); if (r.ok) { await adminCheck(); $('adMsg').textContent = r.msg; } });
 function armed(btn, key, label, armedLabel) {
   if (Date.now() - ui.resetArm > 4000 || ui.armFor !== key) { ui.resetArm = Date.now(); ui.armFor = key; btn.textContent = armedLabel; setTimeout(() => (btn.textContent = label), 4000); return false; }
   ui.resetArm = 0; btn.textContent = label; return true;

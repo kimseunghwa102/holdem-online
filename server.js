@@ -5,13 +5,14 @@ const crypto = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const E = require('./engine');
+const AI = require('./ai');
 const makeStore = require('./store');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const DEFAULT_CFG = { start: 1000, sb: 10, bb: 20, recoverPct: 50, turnSecs: 30 };
+const DEFAULT_CFG = { start: 1000, sb: 10, bb: 20, recoverPct: 50, turnSecs: 30, ai: process.env.AI_PLAYER !== 'off' };
 const MAX_PLAYERS = 300;           // accounts kept in the ledger
-const OFFLINE_STAND_MS = 120000;   // offline this long while not in a hand → stood up
+const OFFLINE_STAND_MS = +process.env.OFFLINE_STAND_MS || 120000; // offline this long while not in a hand → stood up
 const NEXT_HAND_MS = +process.env.NEXT_HAND_MS || 6000; // pause between hands so everyone sees the result
 
 /* ---------- state ---------- */
@@ -58,10 +59,11 @@ function setPin(p, pin) { p.salt = crypto.randomBytes(16).toString('hex'); p.pin
 function safeEq(a, b) { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); }
 
 /* ---------- game flow ---------- */
-let turnT = null, nextT = null;
+let turnT = null, nextT = null, aiPlan = null;
 function armTurn() {
   clearTimeout(turnT); turnT = null;
   const h = S.hand; if (!h || h.over || h.toAct < 0) return;
+  if (h.ps[h.toAct].pid === AI.KEY) return armAiTurn(h);
   const key = h.ps[h.toAct].pid, offline = !rt(key).sock;
   const ms = (offline ? Math.min(8, S.cfg.turnSecs) : S.cfg.turnSecs) * 1000;
   h.deadline = h.turnAt + ms;
@@ -73,6 +75,37 @@ function armTurn() {
     if (r.timeouts >= 2 && S.players[key]) S.players[key].away = true;
     changed();
   }, Math.max(0, h.deadline - Date.now()));
+}
+// The AI decides once per turn and acts after a short "thinking" pause (re-arming never restarts the pause).
+function armAiTurn(h) {
+  const no = h.no, seat = h.toAct, at = h.turnAt, id = `${no}-${seat}-${at}`;
+  h.deadline = at + S.cfg.turnSecs * 1000;
+  if (!aiPlan || aiPlan.id !== id) {
+    let mv; try { mv = AI.decide(S, seat); } catch (e) { console.error('[ai] decide failed:', e); mv = { type: 'call' }; }
+    aiPlan = { id, mv, actAt: at + AI.thinkMs(S, seat, mv) };
+  }
+  turnT = setTimeout(() => {
+    const x = S.hand; if (!x || x.no !== no || x.over || x.toAct !== seat || x.turnAt !== at) return;
+    const { mv } = aiPlan;
+    if (!E.doAction(S, seat, mv.type, mv.to) && !E.doAction(S, seat, 'call')) E.doAction(S, seat, 'auto');
+    changed();
+  }, Math.max(0, aiPlan.actAt - Date.now()));
+}
+// Keeps the AI at the table: sits while 0–3 people are seated, makes room when a 4th sits down,
+// rebuys when broke, and leaves when the owner switches it off. Never stands up in the middle of its hand.
+function aiTick() {
+  let p = S.players[AI.KEY];
+  if (!p) p = S.players[AI.KEY] = { name: AI.NAME, chips: S.cfg.start, invested: S.cfg.start, busts: 0, recovers: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, createdAt: Date.now() };
+  p.name = AI.NAME; p.away = false;
+  const inHand = E.inActiveHand(S, AI.KEY), dealtIn = !!(S.hand && !S.hand.over && S.hand.ps.some(q => q && q.pid === AI.KEY));
+  if (p.chips <= 0 && !dealtIn) { p.chips = S.cfg.start; p.invested = (p.invested || 0) + S.cfg.start; p.recovers = (p.recovers || 0) + 1; }
+  const humans = S.seats.filter(k => k && k !== AI.KEY).length;
+  if (p.seat == null) {
+    if (S.cfg.ai && humans <= 3) {
+      const seat = AI.SEAT_ORDER.find(i => !S.seats[i]);
+      if (seat != null) { S.seats[seat] = AI.KEY; p.seat = seat; }
+    }
+  } else if ((!S.cfg.ai || humans >= 4) && !inHand) stand(AI.KEY, '자리 비켜줌');
 }
 function scheduleNext() {
   const h = S.hand;
@@ -92,7 +125,7 @@ function book(h) {
 }
 function changed() {
   if (S.hand && S.hand.over && !S.hand.booked) book(S.hand);
-  armTurn(); scheduleNext(); saveSoon(); broadcast();
+  aiTick(); armTurn(); scheduleNext(); saveSoon(); broadcast();
 }
 function stand(key, why) {
   const p = S.players[key]; if (!p || p.seat == null) return;
@@ -104,7 +137,7 @@ function stand(key, why) {
 
 /* ---------- views ---------- */
 function ranking() {
-  return Object.entries(S.players)
+  return Object.entries(S.players).filter(([k]) => k !== AI.KEY) // the house AI is not ranked
     .map(([k, p]) => ({ name: p.name, chips: p.chips, net: p.chips - (p.invested || 0), busts: p.busts || 0, recovers: p.recovers || 0,
       handsWon: p.handsWon || 0, handsPlayed: p.handsPlayed || 0, bestPot: p.bestPot || 0, online: !!rt(k).sock, seated: p.seat != null }))
     .sort((a, b) => b.chips - a.chips || b.net - a.net)
@@ -114,12 +147,12 @@ function viewFor(key, rank) {
   const now = Date.now(), h = S.hand, me = key && S.players[key];
   const recoverAmt = Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100));
   const v = {
-    cfg: { start: S.cfg.start, sb: S.cfg.sb, bb: S.cfg.bb, recoverPct: S.cfg.recoverPct, turnSecs: S.cfg.turnSecs },
+    cfg: { start: S.cfg.start, sb: S.cfg.sb, bb: S.cfg.bb, recoverPct: S.cfg.recoverPct, turnSecs: S.cfg.turnSecs, ai: !!S.cfg.ai },
     adminKeyEnabled: !!ADMIN_KEY,
     owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null,
     me: me ? { name: me.name, isAdmin: key === S.admin, chips: me.chips, invested: me.invested || 0, seat: me.seat ?? null, away: !!me.away, busts: me.busts || 0,
       recovers: me.recovers || 0, canRecover: me.chips === 0 && !E.inActiveHand(S, key), recoverAmt } : null,
-    seats: S.seats.map(k => { const p = k && S.players[k]; return p ? { name: p.name, chips: p.chips, away: !!p.away, online: !!rt(k).sock, me: k === key } : null; }),
+    seats: S.seats.map(k => { const p = k && S.players[k]; return p ? { name: p.name, chips: p.chips, away: !!p.away, online: k === AI.KEY || !!rt(k).sock, me: k === key, bot: k === AI.KEY } : null; }),
     button: S.button, handNo: S.handNo, nextIn: S.nextAt ? Math.max(0, S.nextAt - now) : 0,
     hand: null, ranking: rank,
   };
@@ -181,6 +214,7 @@ function setupSockets(server) {
       const n = validName(name);
       if (!n) return ack({ ok: false, msg: '닉네임은 1~10자로 입력하세요.' });
       if (!validPin(pin)) return ack({ ok: false, msg: 'PIN은 숫자 4자리예요.' });
+      if (nameKey(n) === nameKey(AI.NAME)) return ack({ ok: false, msg: 'AI 플레이어 이름이라 쓸 수 없어요. 다른 닉네임을 써주세요.' });
       const key = nameKey(n), r = rt(key); let p = S.players[key], isNew = false;
       if (p) {
         if (r.lockUntil > Date.now()) return ack({ ok: false, msg: `PIN을 여러 번 틀렸어요. ${Math.ceil((r.lockUntil - Date.now()) / 60000)}분 뒤에 다시 해주세요.` });
@@ -248,7 +282,11 @@ function setupSockets(server) {
       const int = x => (Number.isFinite(+x) ? Math.floor(+x) : NaN);
       const target = () => { const n = validName(msg.name); return n ? [nameKey(n), S.players[nameKey(n)]] : [null, null]; };
       switch (msg.op) {
-        case 'check': return ack({ ok: true, cfg: S.cfg, owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null, names: Object.values(S.players).map(p => p.name).sort() });
+        case 'check': return ack({ ok: true, cfg: S.cfg, owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null, names: Object.entries(S.players).filter(([k]) => k !== AI.KEY).map(([, p]) => p.name).sort() });
+        case 'ai': {
+          S.cfg.ai = !!msg.on;
+          ack({ ok: true, msg: S.cfg.ai ? `${AI.NAME}를 켰어요. 빈 자리가 있으면 바로 앉아요.` : `${AI.NAME}를 껐어요. 하던 핸드가 끝나면 일어나요.` }); return changed();
+        }
         case 'setAdmin': {
           const [k, p] = target();
           if (!p) return ack({ ok: false, msg: '그런 닉네임이 없어요.' });
@@ -260,7 +298,7 @@ function setupSockets(server) {
           if (!(c.start >= c.bb * 2)) return ack({ ok: false, msg: `시작 칩은 BB의 2배(${c.bb * 2}) 이상이어야 해요.` });
           if (!(c.recoverPct >= 1 && c.recoverPct <= 100)) return ack({ ok: false, msg: '복구 비율은 1~100%예요.' });
           if (!(c.turnSecs >= 10 && c.turnSecs <= 120)) return ack({ ok: false, msg: '제한 시간은 10~120초예요.' });
-          S.cfg = c; ack({ ok: true, msg: '저장했어요. 블라인드는 다음 핸드부터 적용돼요.' }); return changed();
+          S.cfg = { ...S.cfg, ...c }; ack({ ok: true, msg: '저장했어요. 블라인드는 다음 핸드부터 적용돼요.' }); return changed();
         }
         case 'setChips': {
           const [k, p] = target(); const v = int(msg.chips);
@@ -308,7 +346,7 @@ function setupSockets(server) {
 setInterval(() => {
   let any = false;
   S.seats.forEach(k => {
-    if (!k) return; const r = rt(k);
+    if (!k || k === AI.KEY) return; const r = rt(k);
     if (!r.sock && Date.now() - r.lastSeen > OFFLINE_STAND_MS && !E.inActiveHand(S, k)) { stand(k, '연결 끊김'); any = true; }
   });
   if (any) changed();
@@ -324,9 +362,10 @@ setInterval(() => {
     S.admin = data.admin && S.players[data.admin] ? data.admin : null;
     Object.values(S.players).forEach(p => { p.seat = null; p.away = false; });
   }
+  aiTick(); // the AI takes its seat right away
   const app = express();
   app.disable('x-powered-by');
-  app.get('/healthz', (_, res) => res.json({ ok: true, store: store.kind.split(':')[0], players: Object.keys(S.players).length }));
+  app.get('/healthz', (_, res) => res.json({ ok: true, store: store.kind.split(':')[0], players: Object.keys(S.players).filter(k => k !== AI.KEY).length, ai: S.players[AI.KEY] && S.players[AI.KEY].seat != null ? 'seated' : 'off' }));
   const INDEX = path.join(__dirname, 'index.html'); // only this file is served; server code stays private
   app.get(['/', '/index.html'], (_, res) => res.sendFile(INDEX));
   const server = http.createServer(app);
