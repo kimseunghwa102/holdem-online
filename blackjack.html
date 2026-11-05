@@ -41,6 +41,7 @@ input:focus{outline:none;border-color:var(--gold)}
 .hud>*{pointer-events:auto}
 .brand{min-width:0;text-align:left;padding:2px 0}
 .brand b{display:flex;align-items:center;gap:6px;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:22px;line-height:1;color:var(--gold);white-space:nowrap}
+.brand b span{font-family:var(--f-body);font-style:normal;font-weight:700;font-size:16px;color:var(--ink)}
 .brand b em{font-family:var(--f-num);font-style:normal;font-weight:500;font-size:10px;letter-spacing:.16em;color:var(--cyan-ink);background:var(--cyan);border-radius:5px;padding:2px 5px 1px}
 .brand b svg{width:14px;height:14px;fill:none;stroke:var(--dim);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .brand small{display:block;margin-top:5px;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -143,6 +144,8 @@ input:focus{outline:none;border-color:var(--gold)}
 .recover b{display:block;font-family:var(--f-display);font-style:italic;font-size:19px}
 .recover span{font-size:12.5px;color:var(--muted)}
 .recover .gold{flex:none;height:44px;padding:0 14px;font-size:14px}
+.recover.wait{background:rgba(230,182,92,.1);box-shadow:inset 0 0 0 1px rgba(230,182,92,.45)}
+.rclock{flex:none;font-family:var(--f-num);font-weight:500;font-size:24px;letter-spacing:.04em;color:var(--gold);font-variant-numeric:tabular-nums}
 .lform{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:10px;padding:14px;border-radius:18px;
   background:rgba(8,11,15,.94);box-shadow:0 0 0 1px rgba(255,255,255,.1),0 18px 40px rgba(0,0,0,.5)}
 .lform .lt{grid-column:1/-1;font-size:13px;color:var(--muted);text-align:center}
@@ -201,6 +204,7 @@ input:focus{outline:none;border-color:var(--gold)}
 @media (max-width:430px){
   .brand b{font-size:20px;gap:5px}
   .brand b em{font-size:9px;padding:2px 4px 1px}
+  .brand b span{font-size:15px}
   .brand small{font-size:11px}
   #voiceBtn{display:none}
   .hright{gap:5px}
@@ -236,7 +240,7 @@ input:focus{outline:none;border-color:var(--gold)}
   <div class="bubble hide" id="bubble"><i>AI DEALER</i><span id="bubbleText"></span></div>
 </div>
 <header class="hud" id="hud">
-  <button class="brand" id="brandBtn" type="button" aria-label="게임 선택 열기"><b>Blackjack<em>BETA</em><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></b><small id="meta">GYBM · 6덱 · 블랙잭 3:2</small></button>
+  <button class="brand" id="brandBtn" type="button" aria-label="게임 선택 열기"><b>GYBM<span>블랙잭</span><em>BETA</em><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></b><small id="meta">6덱 · 블랙잭 3:2 · 홀덤 칩 연동</small></button>
   <div class="hright">
     <div class="bank" id="bankBox" hidden><em id="rankTxt">CHIPS</em><b id="bank">0</b></div>
     <button class="ibtn" id="soundBtn" type="button" aria-label="효과음 켜기/끄기"></button>
@@ -260,7 +264,7 @@ input:focus{outline:none;border-color:var(--gold)}
       <button type="button" class="sbtn" id="voiceToggle"></button>
     </div>
     <button type="button" class="sbtn dng" id="leaveBtn">자리에서 일어나기</button>
-    <div class="notice"><b>규칙</b> · 6덱 슈 · 딜러는 모든 17에서 멈춰요 · 블랙잭은 3:2 · 더블은 첫 두 장에서 (스플릿 후에도 OK) · 스플릿은 한 번 · 에이스 스플릿은 한 장씩만 · 인슈어런스 없음 · 칩은 홀덤 계정과 같아요.</div>
+    <div class="notice"><b>규칙</b> · 6덱 슈 · 딜러는 모든 17에서 멈춰요 · 블랙잭은 3:2 · 더블은 첫 두 장에서 (스플릿 후에도 OK) · 스플릿은 한 번 · 에이스 스플릿은 한 장씩만 · 인슈어런스 없음 · 칩은 홀덤 계정과 같아요.<br><b>파산</b> · 5분 뒤 시작 칩의 30%로 다시 시작 · 10번째 파산마다 5시간 대기 (홀덤과 공통)</div>
     <button type="button" class="sbtn" data-close="menuSheet">닫기</button>
   </div>
 </div>
@@ -271,7 +275,7 @@ input:focus{outline:none;border-color:var(--gold)}
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
-<div class="boot" id="boot"><div><b>Blackjack</b><span id="bootMsg">테이블을 준비하는 중…</span></div></div>
+<div class="boot" id="boot"><div><b>GYBM Blackjack</b><span id="bootMsg">테이블을 준비하는 중…</span></div></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -449,10 +453,11 @@ function feltCanvas() {
     const nx = W / 2 + Math.cos(t) * (RB + .9) * s, ny = Math.sin(t) * (RB + .9) * s;
     g.save(); g.translate(nx, ny); g.rotate(t - Math.PI / 2); g.fillStyle = goldSoft; g.font = '600 24px Oswald, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(i + 1), 0, 0); g.restore();
   });
-  // AI emblem under the dealer
-  g.save(); g.translate(W / 2, 1.5 * s); g.strokeStyle = goldSoft; g.lineWidth = 2.5; g.beginPath();
-  for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(.5 * s * Math.cos(a), .5 * s * Math.sin(a)); }
-  g.closePath(); g.stroke(); g.fillStyle = goldSoft; g.font = 'italic 800 46px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AI', 0, 3); g.restore();
+  // GYBM wordmark between the chip rack and the dealer's cards
+  g.save(); g.translate(W / 2, 1.42 * s); g.fillStyle = gold; g.strokeStyle = goldSoft; g.lineWidth = 2;
+  g.font = 'italic 800 54px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('GYBM', 0, 3);
+  [-1, 1].forEach(d => { g.beginPath(); g.moveTo(d * 92, 2); g.lineTo(d * 210, 2); g.stroke(); g.beginPath(); g.arc(d * 222, 2, 5, 0, Math.PI * 2); g.fillStyle = goldSoft; g.fill(); });
+  g.restore();
   return c;
 }
 function buildTable() {
@@ -530,9 +535,9 @@ function backCanvas() {
   for (let k = -H; k < W + H; k += 21) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + H, H); g.stroke(); g.beginPath(); g.moveTo(k, H); g.lineTo(k + H, 0); g.stroke(); }
   g.restore();
   g.strokeStyle = 'rgba(230,182,92,.8)'; g.lineWidth = 2; rrPath(g, 22, 22, W - 44, H - 44, 7); g.stroke();
-  g.fillStyle = '#0a1a2e'; g.beginPath(); g.arc(W / 2, H / 2, 54, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#e6b65c'; g.lineWidth = 4; g.stroke(); g.lineWidth = 1.5; g.beginPath(); g.arc(W / 2, H / 2, 45, 0, Math.PI * 2); g.stroke();
-  g.fillStyle = '#e6b65c'; g.font = 'italic 800 56px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AI', W / 2 - 2, H / 2 + 3);
+  g.fillStyle = '#0a1a2e'; rrPath(g, W / 2 - 82, H / 2 - 40, 164, 80, 40); g.fill();
+  g.strokeStyle = '#e6b65c'; g.lineWidth = 4; g.stroke(); g.lineWidth = 1.5; rrPath(g, W / 2 - 73, H / 2 - 31, 146, 62, 31); g.stroke();
+  g.fillStyle = '#e6b65c'; g.font = 'italic 800 46px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('GYBM', W / 2 - 2, H / 2 + 3);
   return c;
 }
 const CARD_SHAPE = roundedRectShape(CW, CH, .075);
@@ -1229,6 +1234,7 @@ const leftMs = kind => {
   if (!V) return 0; const el = performance.now() - recvAt;
   if (kind === 'turn') return V.turn ? Math.max(0, V.turn.left - el) : 0;
   if (kind === 'bet') return Math.max(0, (V.betLeft || 0) - el);
+  if (kind === 'recover') return V.me && V.me.broke ? Math.max(0, (V.me.recoverIn || 0) - el) : 0;
   return Math.max(0, (V.nextIn || 0) - el);
 };
 function dockHTML() {
@@ -1245,7 +1251,10 @@ function dockHTML() {
       <div class="lerr" id="liErr"></div>
     </form>`;
   }
-  const me = v.me, s = me.seat, recover = me.canRecover ? `<div class="recover"><div><b>칩이 다 떨어졌어요</b><span>홀덤과 같은 파산 복구예요</span></div><button class="gold" type="button" data-do="recover">${fmt(me.recoverAmt)} 받기</button></div>` : '';
+  const me = v.me, s = me.seat, R = v.rules || { recoverPct: 30, recoverMin: 5, longEvery: 10, longHours: 5 };
+  const recover = !me.broke ? '' : leftMs('recover') <= 0
+    ? `<div class="recover"><div><b>칩이 다 떨어졌어요</b><span>시작 칩의 ${R.recoverPct}%를 받고 다시 시작해요 · 홀덤과 같은 칩</span></div><button class="gold" type="button" data-do="recover">${fmt(me.recoverAmt)} 받기</button></div>`
+    : `<div class="recover wait"><div><b>${me.recoverLong ? `${me.busts}번째 파산` : '파산'}</b><span>${me.recoverLong ? `파산 ${R.longEvery}번마다 ${R.longHours}시간 쉬어요` : `${R.recoverMin}분 쉬고 다시 시작해요`} · 끝나면 ${fmt(me.recoverAmt)}칩</span></div><span class="rclock" data-clock="recover"></span></div>`;
   if (s == null) {
     const free = v.seats.filter(x => !x).length;
     return `${recover}<div class="status center"><span>${free ? '빈 자리의 <b>앉기</b>를 누르면 게임에 참여해요' : '자리가 다 찼어요. 구경하면서 기다려 주세요'}</span></div>
@@ -1299,7 +1308,7 @@ function renderUI() {
   const me = V && V.me;
   $('bankBox').hidden = !me;
   if (me) { $('rankTxt').textContent = me.rank ? `CHIPS · ${me.rank}위` : 'CHIPS'; if (shownBank == null) { shownBank = me.chips; $('bank').textContent = fmt(me.chips); } }
-  if (V && V.shoe) $('meta').textContent = `GYBM · 6덱 · 남은 카드 ${Math.round(V.shoe.left * 100)}%`;
+  if (V && V.shoe) $('meta').textContent = `6덱 · 3:2 · 남은 카드 ${Math.round(V.shoe.left * 100)}%`;
   const dock = $('dock'), html = dockHTML();
   if (dock._h !== html) {
     const focusId = document.activeElement && document.activeElement.id, keep = {};
@@ -1315,8 +1324,16 @@ function renderUI() {
   ui.lastTurnKey = tk;
   if (!$('menuSheet').hidden) renderMenu();
 }
+function clockText(ms) {
+  const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60, p2 = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p2(m)}:${p2(r)}` : `${m}:${p2(r)}`;
+}
 function tickTimers() {
   document.querySelectorAll('[data-left]').forEach(el => { const t = String(Math.ceil(leftMs(el.dataset.left) / 1000)); if (el.textContent !== t) el.textContent = t; });
+  document.querySelectorAll('[data-clock]').forEach(el => { const t = clockText(leftMs(el.dataset.clock)); if (el.textContent !== t) el.textContent = t; });
+  // the bankruptcy wait just ran out: swap the countdown for the button
+  const ready = !!(V && V.me && V.me.broke && leftMs('recover') <= 0);
+  if (ready !== ui.recReady) { ui.recReady = ready; renderUI(); }
   document.querySelectorAll('[data-bar]').forEach(el => { const tot = V && V.turn ? V.turn.total : 1; el.style.transform = `scaleX(${clamp(leftMs(el.dataset.bar) / tot, 0, 1)})`; });
 }
 function tickBank(dt) {

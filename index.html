@@ -292,6 +292,8 @@ button.brand{display:block;text-align:left;padding:0;min-width:0}
 .recover b{display:block;font-family:var(--f-display);font-style:italic;font-size:19px}
 .recover span{font-size:12.5px;color:var(--muted)}
 .recover .gold-btn{height:44px;padding:0 14px;flex:none;font-size:14px}
+.recover.wait{background:rgba(232,184,92,.1);box-shadow:inset 0 0 0 1px rgba(232,184,92,.45)}
+.rclock{flex:none;font-family:var(--f-num);font-weight:500;font-size:24px;letter-spacing:.04em;color:var(--gold);font-variant-numeric:tabular-nums}
 
 /* ---------- sheets ---------- */
 .overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(6,4,3,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
@@ -965,11 +967,14 @@ function raiseLabel(o) { return `<span>${ui.raiseTo >= o.maxTo ? '올인' : o.cu
 function renderActions() {
   const me = V.me, h = V.hand, o = h && h.opts, box = $('actions');
   const myHz = h && me.seat != null && h.ps[me.seat] && h.ps[me.seat].current ? h.ps[me.seat] : null;
-  const sig = JSON.stringify([h && h.no, h && h.street, h && h.toAct, h && h.over, o, me.seat, me.canRecover, me.away, V.nextIn > 0, ui.raiseOpen, h && h.result && h.result.pot, myHz && myHz.folded]);
+  const recReady = !!me.broke && recoverLeft() <= 0;
+  const sig = JSON.stringify([h && h.no, h && h.street, h && h.toAct, h && h.over, o, me.seat, me.broke, recReady, me.recoverLong, me.recoverAmt, me.away, V.nextIn > 0, ui.raiseOpen, h && h.result && h.result.pot, myHz && myHz.folded]);
   if (sig === ui.barSig) return;
   ui.barSig = sig;
   let html = '';
-  if (me.canRecover) html += `<div class="recover"><div><b>파산</b><span>시작 칩의 ${V.cfg.recoverPct}%를 받고 다시 시작할 수 있어요.</span></div><button type="button" class="gold-btn" data-act="recover">${fmt(me.recoverAmt)} 칩 복구</button></div>`;
+  const c = V.cfg;
+  if (recReady) html += `<div class="recover"><div><b>파산</b><span>시작 칩의 ${c.recoverPct}%를 받고 다시 시작할 수 있어요.</span></div><button type="button" class="gold-btn" data-act="recover">${fmt(me.recoverAmt)} 칩 받기</button></div>`;
+  else if (me.broke) html += `<div class="recover wait"><div><b>${me.recoverLong ? `${me.busts}번째 파산` : '파산'}</b><span>${me.recoverLong ? `파산 ${c.longEvery}번마다 ${c.longHours}시간 쉬어요.` : `${c.recoverMin}분 쉬고 다시 시작해요.`} 끝나면 ${fmt(me.recoverAmt)}칩(시작 칩의 ${c.recoverPct}%)을 받아요.</span></div><span class="rclock" id="recClock">${clockText(recoverLeft())}</span></div>`;
   if (h && !h.over) {
     if (o) {
       const key = `${h.no}-${h.street}-${o.currentBet}`;
@@ -1006,8 +1011,16 @@ function setRaise(v) {
   const b = $('raiseBtn'); if (b) b.innerHTML = raiseLabel(o);
   const a = $('raiseAmt'); if (a) a.firstChild.nodeValue = fmt(ui.raiseTo);
 }
+// bankruptcy wait, counted down here between server updates
+const recoverLeft = () => (V && V.me && V.me.broke ? Math.max(0, (V.me.recoverIn || 0) - (Date.now() - recvAt)) : 0);
+function clockText(ms) {
+  const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60, p2 = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p2(m)}:${p2(r)}` : `${m}:${p2(r)}`;
+}
 function tick() {
   if (!V || !V.me) return;
+  const rc = $('recClock'); if (rc) rc.textContent = clockText(recoverLeft());
+  if (V.me.broke) renderActions(); // swaps the countdown for the button once the wait is over
   const el = Date.now() - recvAt, t = $('turnTimer'), n = $('nextTimer');
   if (t && V.hand && !V.hand.over) t.textContent = `${Math.max(0, Math.ceil((V.hand.turnLeft - el) / 1000))}초`;
   if (n) { const left = V.nextIn - el; n.textContent = left > 0 ? `${Math.ceil(left / 1000)}초 뒤 다음 판` : ''; }
@@ -1033,7 +1046,7 @@ function renderRank() {
 }
 function renderMenu() {
   const c = V.cfg;
-  $('menuInfo').innerHTML = `<b>${esc(V.me.name)}</b>${V.me.isAdmin ? ' (방장)' : ''} · 파산 ${V.me.busts}회 · 복구 ${V.me.recovers}회<br>시작 칩 ${fmt(c.start)} · 블라인드 ${fmt(c.sb)}/${fmt(c.bb)} · 파산 복구 ${c.recoverPct}% · 차례 ${c.turnSecs}초${V.owner ? `<br>방장: ${esc(V.owner)}` : ''}`;
+  $('menuInfo').innerHTML = `<b>${esc(V.me.name)}</b>${V.me.isAdmin ? ' (방장)' : ''} · 파산 ${V.me.busts}회 · 복구 ${V.me.recovers}회<br>시작 칩 ${fmt(c.start)} · 블라인드 ${fmt(c.sb)}/${fmt(c.bb)} · 차례 ${c.turnSecs}초<br>파산하면 ${c.recoverMin}분 뒤 시작 칩의 ${c.recoverPct}%로 다시 시작 · ${c.longEvery}번째 파산마다 ${c.longHours}시간 대기${V.owner ? `<br>방장: ${esc(V.owner)}` : ''}`;
   $('adminOpen').hidden = !(V.me.isAdmin || V.adminKeyEnabled);
   paintSound();
 }
@@ -1237,7 +1250,7 @@ function createDemoSocket() {
   const inActiveHand = (s, key) => !!(s.hand && !s.hand.over && s.hand.ps.some(p => p && p.pid === key && !p.folded));
 
   /* --- table state + bots --- */
-  const S = { cfg: { start: 1000, sb: 10, bb: 20, recoverPct: 50, turnSecs: 30 }, players: {}, admin: null, seats: [null, null, null, null, null], button: -1, handNo: 0, hand: null, nextAt: 0 };
+  const S = { cfg: { start: 1000, sb: 10, bb: 20, recoverPct: 30, recoverMin: 5, longEvery: 10, longHours: 5, turnSecs: 30 }, players: {}, admin: null, seats: [null, null, null, null, null], button: -1, handNo: 0, hand: null, nextAt: 0 };
   [['민수', 1], ['Linh', 2], ['지훈', 4]].forEach(([name, seat]) => {
     const k = 'bot:' + name;
     S.players[k] = { name, chips: 1000, invested: 1000, busts: 0, recovers: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, bot: true, seat, away: false };
@@ -1314,7 +1327,7 @@ function createDemoSocket() {
     const v = {
       cfg: { ...S.cfg }, adminKeyEnabled: false, owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null,
       me: p ? { name: p.name, isAdmin: me === S.admin, chips: p.chips, invested: p.invested, seat: p.seat ?? null, away: !!p.away, busts: p.busts, recovers: p.recovers,
-        canRecover: p.chips === 0 && !inActiveHand(S, me), recoverAmt: Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100)) } : null,
+        broke: p.chips === 0 && !inActiveHand(S, me), recoverIn: 0, recoverLong: false, canRecover: p.chips === 0 && !inActiveHand(S, me), recoverAmt: Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100)) } : null,
       seats: S.seats.map(k => { const q = k && S.players[k]; return q ? { name: q.name, chips: q.chips, away: !!q.away, online: true, me: k === me } : null; }),
       button: S.button, handNo: S.handNo, nextIn: S.nextAt ? Math.max(0, S.nextAt - now) : 0, hand: null, ranking: ranking(),
     };

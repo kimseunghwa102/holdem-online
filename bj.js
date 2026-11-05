@@ -25,7 +25,7 @@ function newShoe() {
   return s;
 }
 
-function createBlackjack({ players, present, changed, speed = 1 }) {
+function createBlackjack({ players, present, changed, onBust, speed = 1 }) {
   const ms = x => Math.max(1, Math.round(x / speed));
   const CFG = { min: 5, max: 5000, betSecs: 15, turnSecs: 20, offlineTurnSecs: 8 };
   // pacing (ms at speed 1); the client animates inside these windows
@@ -340,7 +340,7 @@ function createBlackjack({ players, present, changed, speed = 1 }) {
       p.chips += back;
       p.bjRounds = (p.bjRounds || 0) + 1;
       if (T.net[s] > 0) p.bjWins = (p.bjWins || 0) + 1;
-      if (p.chips === 0) p.busts = (p.busts || 0) + 1;
+      if (p.chips === 0) { if (onBust) onBust(T.seats[s], p); else p.busts = (p.busts || 0) + 1; }
     }
     T.phase = 'over'; T.holeShown = true; T.peeking = false; T.turn = null; T.deadline = 0;
     T.overAt = Date.now();

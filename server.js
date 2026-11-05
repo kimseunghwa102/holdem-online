@@ -11,7 +11,9 @@ const makeStore = require('./store');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const DEFAULT_CFG = { start: 1000, sb: 10, bb: 20, recoverPct: 50, turnSecs: 30, ai: process.env.AI_PLAYER !== 'off' };
+// bankruptcy: recoverPct of the starting chips, after recoverMin minutes — or longHours hours on every longEvery-th bankruptcy
+const DEFAULT_CFG = { start: 1000, sb: 10, bb: 20, recoverPct: 30, recoverMin: 5, longEvery: 10, longHours: 5, turnSecs: 30, ai: process.env.AI_PLAYER !== 'off' };
+const RULES_V = 2; // bump to re-apply rule defaults to a saved table once
 const MAX_PLAYERS = 300;           // accounts kept in the ledger
 const OFFLINE_STAND_MS = +process.env.OFFLINE_STAND_MS || 120000; // offline this long while not in a hand → stood up
 const NEXT_HAND_MS = +process.env.NEXT_HAND_MS || 6000; // pause between hands so everyone sees the result
@@ -26,9 +28,9 @@ const rt = k => { let r = RT.get(k); if (!r) { r = { sock: null, lastSeen: 0, fa
 const atBJ = k => { const s = rt(k).sock; return !!s && s.data.game === 'bj'; };
 const atHoldem = k => { const s = rt(k).sock; return !!s && s.data.game !== 'bj'; };
 // the blackjack mini-game plays with the same chips (see bj.js)
-const BJ = createBlackjack({ players: () => S.players, present: atBJ, changed: () => changed(), speed: +process.env.BJ_SPEED || 1 });
+const BJ = createBlackjack({ players: () => S.players, present: atBJ, changed: () => changed(), onBust: (k, p) => bankrupt(k, p), speed: +process.env.BJ_SPEED || 1 });
 
-const PERSIST = ['name', 'pinHash', 'salt', 'chips', 'invested', 'busts', 'recovers', 'handsPlayed', 'handsWon', 'bestPot', 'bjRounds', 'bjWins', 'token', 'createdAt', 'lastSeen'];
+const PERSIST = ['name', 'pinHash', 'salt', 'chips', 'invested', 'busts', 'recovers', 'recoverAt', 'handsPlayed', 'handsWon', 'bestPot', 'bjRounds', 'bjWins', 'token', 'createdAt', 'lastSeen'];
 let store;
 function snapshot() {
   const players = {};
@@ -65,6 +67,25 @@ function checkPin(p, pin) {
 }
 function setPin(p, pin) { p.salt = crypto.randomBytes(16).toString('hex'); p.pinHash = hashPin(pin, p.salt); }
 function safeEq(a, b) { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); }
+
+/* ---------- bankruptcy (shared by holdem and blackjack) ---------- */
+const recoverAmount = () => Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100));
+const longBust = p => S.cfg.longEvery > 0 && (p.busts || 0) > 0 && (p.busts || 0) % S.cfg.longEvery === 0;
+// chips hit zero at the end of a hand / round: count it and start the wait before chips can be recovered
+function bankrupt(key, p) {
+  p.busts = (p.busts || 0) + 1;
+  if (key === AI.KEY) return; // the house AI rebuys on its own
+  p.recoverAt = Date.now() + (longBust(p) ? S.cfg.longHours * 3600e3 : S.cfg.recoverMin * 60e3);
+}
+function recoverState(key, p, now = Date.now()) {
+  const broke = p.chips === 0 && !E.inActiveHand(S, key) && !BJ.committedFor(key);
+  const recoverIn = broke ? Math.max(0, (p.recoverAt || 0) - now) : 0;
+  return { broke, recoverIn, canRecover: broke && recoverIn === 0, recoverLong: broke && recoverIn > 0 && longBust(p), recoverAmt: recoverAmount() };
+}
+function waitText(ms) {
+  const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}시간 ${m}분` : m ? `${m}분 ${r}초` : `${r}초`;
+}
 
 /* ---------- game flow ---------- */
 let turnT = null, nextT = null, aiPlan = null;
@@ -128,7 +149,7 @@ function book(h) {
     if (!q) return; const p = S.players[q.pid]; if (!p) return;
     p.handsPlayed = (p.handsPlayed || 0) + 1;
     if (h.result && h.result.wins[i]) { p.handsWon = (p.handsWon || 0) + 1; p.bestPot = Math.max(p.bestPot || 0, h.result.pot || 0); }
-    if (p.chips === 0) p.busts = (p.busts || 0) + 1;
+    if (p.chips === 0) bankrupt(q.pid, p);
   });
 }
 function changed() {
@@ -153,13 +174,12 @@ function ranking() {
 }
 function viewFor(key, rank) {
   const now = Date.now(), h = S.hand, me = key && S.players[key];
-  const recoverAmt = Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100));
   const v = {
-    cfg: { start: S.cfg.start, sb: S.cfg.sb, bb: S.cfg.bb, recoverPct: S.cfg.recoverPct, turnSecs: S.cfg.turnSecs, ai: !!S.cfg.ai },
+    cfg: { start: S.cfg.start, sb: S.cfg.sb, bb: S.cfg.bb, recoverPct: S.cfg.recoverPct, recoverMin: S.cfg.recoverMin, longEvery: S.cfg.longEvery, longHours: S.cfg.longHours, turnSecs: S.cfg.turnSecs, ai: !!S.cfg.ai },
     adminKeyEnabled: !!ADMIN_KEY,
     owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null,
     me: me ? { name: me.name, isAdmin: key === S.admin, chips: me.chips, invested: me.invested || 0, seat: me.seat ?? null, away: !!me.away, busts: me.busts || 0,
-      recovers: me.recovers || 0, canRecover: me.chips === 0 && !E.inActiveHand(S, key) && !BJ.committedFor(key), recoverAmt, bj: me.bjSeat != null } : null,
+      recovers: me.recovers || 0, ...recoverState(key, me, now), bj: me.bjSeat != null } : null,
     seats: S.seats.map(k => { const p = k && S.players[k]; return p ? { name: p.name, chips: p.chips, away: !!p.away, online: k === AI.KEY || atHoldem(k), me: k === key, bot: k === AI.KEY } : null; }),
     button: S.button, handNo: S.handNo, nextIn: S.nextAt ? Math.max(0, S.nextAt - now) : 0,
     hand: null, ranking: rank,
@@ -187,12 +207,12 @@ function viewFor(key, rank) {
 function bjViewFor(key, rank) {
   const v = BJ.view(key), me = key && S.players[key];
   if (v.me) {
-    v.me.recoverAmt = Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100));
-    v.me.canRecover = me.chips === 0 && !E.inActiveHand(S, key) && !BJ.committedFor(key);
+    Object.assign(v.me, recoverState(key, me), { busts: me.busts || 0 });
     v.me.holdemSeat = me.seat != null;
     const i = rank.findIndex(r => r.name === me.name); v.me.rank = i >= 0 ? i + 1 : null;
   }
   v.top = rank.slice(0, 5).map(r => ({ name: r.name, chips: r.chips }));
+  v.rules = { recoverPct: S.cfg.recoverPct, recoverMin: S.cfg.recoverMin, longEvery: S.cfg.longEvery, longHours: S.cfg.longHours };
   return v;
 }
 let io;
@@ -291,8 +311,10 @@ function setupSockets(server) {
       if (p.chips > 0) return ack({ ok: false, msg: '칩이 남아 있으면 복구할 수 없어요.' });
       if (E.inActiveHand(S, key)) return ack({ ok: false, msg: '이번 핸드가 끝난 뒤에 복구할 수 있어요.' });
       if (BJ.committedFor(key)) return ack({ ok: false, msg: '블랙잭 판이 끝난 뒤에 복구할 수 있어요.' });
-      const amt = Math.max(S.cfg.bb, Math.floor(S.cfg.start * S.cfg.recoverPct / 100));
-      p.chips += amt; p.invested = (p.invested || 0) + amt; p.recovers = (p.recovers || 0) + 1;
+      const wait = (p.recoverAt || 0) - Date.now();
+      if (wait > 0) return ack({ ok: false, msg: `파산 뒤 기다리는 중이에요. ${waitText(wait)} 뒤에 받을 수 있어요.`, recoverIn: wait });
+      const amt = recoverAmount();
+      p.chips += amt; p.invested = (p.invested || 0) + amt; p.recovers = (p.recovers || 0) + 1; p.recoverAt = 0;
       ack({ ok: true, amount: amt }); changed();
     }));
     sock.on('act', holdemOnly((key, p, { type, to, no }, ack) => {
@@ -377,7 +399,7 @@ function setupSockets(server) {
         case 'resetAll': {
           if (S.hand && !S.hand.over) return ack({ ok: false, msg: '진행 중인 핸드가 끝난 뒤에 초기화할 수 있어요.' });
           if (BJ.busy()) return ack({ ok: false, msg: '블랙잭 판이 끝난 뒤에 초기화할 수 있어요.' });
-          Object.values(S.players).forEach(p => Object.assign(p, { chips: S.cfg.start, invested: S.cfg.start, busts: 0, recovers: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, bjRounds: 0, bjWins: 0 }));
+          Object.values(S.players).forEach(p => Object.assign(p, { chips: S.cfg.start, invested: S.cfg.start, busts: 0, recovers: 0, recoverAt: 0, handsPlayed: 0, handsWon: 0, bestPot: 0, bjRounds: 0, bjWins: 0 }));
           S.hand = null;
           ack({ ok: true, msg: `모든 칩을 ${S.cfg.start.toLocaleString()}으로 초기화했어요.` }); return changed();
         }
@@ -410,10 +432,14 @@ setInterval(() => {
   const data = await store.load();
   if (data) {
     S.cfg = { ...DEFAULT_CFG, ...(data.cfg || {}) };
+    if (!(S.cfg.rulesV >= RULES_V)) { // new bankruptcy rules replace the old 50% instant recovery
+      Object.assign(S.cfg, { recoverPct: DEFAULT_CFG.recoverPct, recoverMin: DEFAULT_CFG.recoverMin, longEvery: DEFAULT_CFG.longEvery, longHours: DEFAULT_CFG.longHours, rulesV: RULES_V });
+      saveSoon();
+    }
     S.players = data.players || {};
     S.admin = data.admin && S.players[data.admin] ? data.admin : null;
     Object.values(S.players).forEach(p => { p.seat = null; p.bjSeat = null; p.away = false; });
-  }
+  } else S.cfg.rulesV = RULES_V;
   aiTick(); // the AI takes its seat right away
   const app = express();
   app.disable('x-powered-by');
