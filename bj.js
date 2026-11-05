@@ -269,10 +269,12 @@ function createBlackjack({ players, present, changed, speed = 1 }) {
   }
   const canDouble = (h, p) => h.cards.length === 2 && !h.splitAces && !h.doubled && !!p && p.chips >= h.bet;
   const canSplit = (s, h, p) => h.cards.length === 2 && T.hands[s].length < MAX_HANDS && val(h.cards[0]) === val(h.cards[1]) && !!p && p.chips >= h.bet;
-  function act(k, type, round) {
+  // hand / n (cards in that hand when the button was pressed) make a double tap harmless
+  function act(k, type, round, hand, n) {
     const s = seatOf(k), p = P(k);
     if (T.phase !== 'play' || !T.turn || s < 0 || T.turn.seat !== s || (round != null && round !== T.round)) return err('지금은 내 차례가 아니에요.');
     const h = T.hands[s][T.turn.hand];
+    if ((hand != null && hand !== T.turn.hand) || (n != null && n !== h.cards.length)) return err(null, { stale: true });
     const bustCheck = () => {
       const t = total(h.cards).t;
       if (t > 21) { h.done = true; say(`${p.name}님 ${t}, 버스트예요.`, 'bust', s); }
@@ -413,7 +415,7 @@ function createBlackjack({ players, present, changed, speed = 1 }) {
       seats: T.seats.map((k, s) => {
         const p = P(k), hs = T.hands[s];
         if (!p && !hs) return null;
-        return { name: p ? p.name : T.names[s], chips: p ? p.chips : 0, me: !!k && k === key, online: !!k && present(k), leaving: T.leaving.has(s), vacated: !k,
+        return { name: p ? p.name : T.names[s], left: !p, chips: p ? p.chips : 0, me: !!k && k === key, online: !!k && present(k), leaving: T.leaving.has(s), vacated: !k,
           bet: T.bets[s], ready: T.ready[s], net: T.phase === 'over' && hs ? T.net[s] : null, hands: hs ? hs.map(handView) : null };
       }),
       dealer: { cards: dealerCards, total: shown.length ? dt.t : 0, soft: dt.soft && dt.t < 21, bj: T.holeShown && T.dealer.length === 2 && total(T.dealer).t === 21, bust: shown.length > 2 && dt.t > 21, holeShown: T.holeShown },

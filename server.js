@@ -320,7 +320,8 @@ function setupSockets(server) {
     sock.on('bj:rebet', bj(key => BJ.rebet(key)));
     sock.on('bj:clear', bj(key => BJ.clear(key)));
     sock.on('bj:ready', bj((key, p, { on }) => BJ.ready(key, on !== false)));
-    sock.on('bj:act', bj((key, p, { type, round }) => BJ.act(key, String(type), round == null ? null : Number(round))));
+    const num = x => (x == null ? null : Number(x));
+    sock.on('bj:act', bj((key, p, { type, round, hand, n }) => BJ.act(key, String(type), num(round), num(hand), num(n))));
     if (process.env.BJ_TEST_HOOKS === '1') sock.on('bj:rig', handler(sock, ({ cards }, ack) => { BJ._test.rig(cards); ack({ ok: true }); }));
 
     sock.on('admin', handler(sock, (msg, ack) => {

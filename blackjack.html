@@ -1173,9 +1173,14 @@ function placeTags(now) {
 tagsEl.addEventListener('click', e => { const b = e.target.closest('[data-sit]'); if (b) sit(+b.dataset.sit); });
 
 /* ================= actions ================= */
+// hand + n (cards in that hand when the button was pressed) let the server ignore an accidental double tap
+let acting = false;
 async function act(type) {
-  if (!V || !V.opts || !V.turn) return;
-  const r = await call('bj:act', { type, round: V.round });
+  if (!V || !V.opts || !V.turn || acting) return;
+  const st = V.seats[V.turn.seat], h = st && st.hands && st.hands[V.turn.hand];
+  acting = true;
+  const r = await call('bj:act', { type, round: V.round, hand: V.turn.hand, n: h ? h.cards.length : null });
+  acting = false;
   if (!r.ok && r.msg) toast(r.msg);
 }
 async function sit(seat, leaveHoldem = false) {
