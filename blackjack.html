@@ -1,0 +1,1441 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06080c">
+<title>GYBM 블랙잭</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Oswald:wght@500;600&family=Playfair+Display:ital,wght@1,800&display=swap">
+<style>
+/* Layout: a five-seat 3D blackjack table under one warm spotlight, an AI robot dealer behind the rack.
+   The camera sits behind your seat; a slim HUD rides the top edge and the betting / action dock is pinned to the bottom. */
+:root{
+  --night:#06080c; --glass-2:rgba(255,255,255,.07);
+  --ink:#f3efe6; --muted:#aab6b9; --dim:rgba(243,239,230,.56); --line:rgba(255,255,255,.13);
+  --gold:#e6b65c; --gold-hi:#f8d68e; --gold-lo:#b8842a; --gold-ink:#241604;
+  --cyan:#62e3f2; --cyan-ink:#03242b; --good:#5fd38d; --danger:#ec6a55;
+  --f-display:"Playfair Display",Georgia,"Times New Roman",serif;
+  --f-num:"Oswald","Arial Narrow",Impact,sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+body{background:radial-gradient(120% 80% at 50% 12%,#1d1b17 0%,#0b0c0f 55%,var(--night) 100%);color:var(--ink);
+  font-family:var(--f-body);font-size:14px;line-height:1.4;touch-action:manipulation;-webkit-user-select:none;user-select:none;word-break:keep-all;overflow-wrap:anywhere}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+button:disabled{cursor:default}
+input{font:inherit;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0;-webkit-user-select:text;user-select:text}
+input:focus{outline:none;border-color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));padding-bottom:8px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(180deg,rgba(6,8,12,.86),rgba(6,8,12,0));pointer-events:none}
+.hud>*{pointer-events:auto}
+.brand{min-width:0;text-align:left;padding:2px 0}
+.brand b{display:flex;align-items:center;gap:6px;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:22px;line-height:1;color:var(--gold);white-space:nowrap}
+.brand b em{font-family:var(--f-num);font-style:normal;font-weight:500;font-size:10px;letter-spacing:.16em;color:var(--cyan-ink);background:var(--cyan);border-radius:5px;padding:2px 5px 1px}
+.brand b svg{width:14px;height:14px;fill:none;stroke:var(--dim);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.brand small{display:block;margin-top:5px;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hright{display:flex;align-items:center;gap:6px;flex:none}
+.bank{display:flex;flex-direction:column;align-items:flex-end;margin-right:4px}
+.bank em{font-style:normal;font-size:10.5px;letter-spacing:.14em;color:var(--dim);font-family:var(--f-num);white-space:nowrap}
+.bank b{font-family:var(--f-num);font-weight:600;font-size:20px;line-height:1;color:var(--gold);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.ibtn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--glass-2);box-shadow:inset 0 0 0 1px var(--line)}
+.ibtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ibtn.off{color:var(--dim)}
+.conn{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:7;max-width:calc(100% - 32px);padding:8px 14px;border-radius:999px;
+  background:rgba(236,106,85,.16);box-shadow:inset 0 0 0 1px rgba(236,106,85,.5);font-size:12.5px;text-align:center;color:#ffd3c9}
+
+/* ---------- floating labels over the 3D scene ---------- */
+.tags{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.tags>*{position:absolute;left:0;top:0;will-change:transform}
+.tag{padding:3px 10px;border-radius:999px;white-space:nowrap;
+  font-family:var(--f-num);font-weight:500;font-size:14px;letter-spacing:.04em;background:rgba(5,8,12,.78);box-shadow:0 0 0 1px rgba(255,255,255,.14),0 6px 16px rgba(0,0,0,.4)}
+.tag.sm{font-size:12px;padding:2px 8px}
+.tag.active{box-shadow:0 0 0 1.5px var(--cyan),0 0 18px rgba(98,227,242,.45)}
+.tag.bj{background:var(--gold);color:var(--gold-ink);font-weight:600}
+.tag.bust,.tag.lose{background:#3b1714;color:#ffb3a6}
+.tag.win{background:#123826;color:#9ff0c0}
+.tag.push{background:#20262e;color:var(--muted)}
+.tag small{font-family:var(--f-body);font-size:11px;letter-spacing:0;margin-left:6px;opacity:.8}
+.stag{display:flex;flex-direction:column;align-items:center;gap:0;padding:4px 10px 6px;border-radius:12px;min-width:60px;white-space:nowrap;
+  background:rgba(5,8,12,.8);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 6px 16px rgba(0,0,0,.45);transition:opacity .25s}
+.stag b{font-size:12.5px;font-weight:700;line-height:1.3;max-width:7.5em;overflow:hidden;text-overflow:ellipsis}
+.stag span{font-family:var(--f-num);font-size:12.5px;line-height:1.25;color:var(--gold);letter-spacing:.03em}
+.stag em{font-style:normal;font-size:10.5px;line-height:1.3;color:var(--muted)}
+.stag em.ok{color:var(--good)}
+.stag.me{box-shadow:0 0 0 1.5px var(--gold),0 6px 16px rgba(0,0,0,.45)}
+.stag.turn{box-shadow:0 0 0 1.5px var(--cyan),0 0 18px rgba(98,227,242,.5)}
+.stag.off{opacity:.55}
+.stag .tb{position:absolute;left:9px;right:9px;bottom:3px;height:2px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
+.stag .tb i{display:block;height:100%;width:100%;background:var(--cyan);transform-origin:left center}
+.sit{pointer-events:auto;height:34px;padding:0 15px;border-radius:999px;font-weight:700;font-size:13px;color:var(--gold-hi);white-space:nowrap;
+  background:rgba(20,16,8,.72);box-shadow:inset 0 0 0 1.5px rgba(230,182,92,.75),0 6px 16px rgba(0,0,0,.4)}
+.sit:active{background:rgba(230,182,92,.3)}
+.bubble{max-width:min(80vw,340px);padding:9px 14px 10px;border-radius:16px;
+  background:rgba(240,251,253,.96);color:#06222a;font-size:14px;font-weight:500;line-height:1.45;text-align:center;text-wrap:balance;
+  box-shadow:0 0 0 1.5px rgba(98,227,242,.9),0 14px 30px rgba(0,0,0,.45);transition:opacity .25s}
+.bubble::before{content:"";position:absolute;left:var(--tail,50%);top:-7px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);background:inherit;box-shadow:-1.5px -1.5px 0 rgba(98,227,242,.9)}
+.bubble i{display:block;font-style:normal;font-family:var(--f-num);font-size:10.5px;letter-spacing:.2em;color:#178a9a;margin-bottom:2px}
+.bubble.hide{opacity:0}
+
+/* ---------- dock ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;
+  padding-top:30px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(0deg,rgba(6,8,12,.92) 34%,rgba(6,8,12,0));pointer-events:none}
+.dock>div{pointer-events:auto;width:min(100%,560px);display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:8px}
+.chips{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.betbox{display:flex;flex-direction:column;gap:10px}
+.chip{--c:#c4262f;--s:#f6f1e6;position:relative;width:52px;height:52px;border-radius:50%;flex:none;
+  background:radial-gradient(closest-side,var(--c) 0 56%,rgba(255,255,255,.92) 57% 61%,var(--c) 62% 74%,transparent 75%),repeating-conic-gradient(var(--c) 0 20deg,var(--s) 20deg 40deg);
+  box-shadow:0 4px 0 rgba(0,0,0,.45),0 8px 18px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.35);
+  font-family:var(--f-num);font-weight:600;font-size:15px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);transition:transform .12s}
+.chip:active{transform:translateY(3px)}
+.chip:disabled{filter:grayscale(.85) brightness(.6)}
+.chip.c5{--c:#c4262f;--s:#f6f1e6}.chip.c25{--c:#1d8c4e;--s:#f6f1e6}.chip.c100{--c:#26262c;--s:#f6f1e6}.chip.c500{--c:#6e2fa8;--s:#f3d37a}
+.ghost{height:46px;padding:0 14px;border-radius:12px;background:var(--glass-2);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:13.5px;white-space:nowrap;flex:none}
+.ghost:disabled{opacity:.4}
+.gold{flex:1;min-width:0;height:54px;border-radius:15px;font-weight:700;font-size:17px;color:var(--gold-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 4px 0 #6f4a14,0 10px 24px rgba(0,0,0,.45)}
+.gold small{font-family:var(--f-num);font-weight:500;font-size:15px;margin-left:6px}
+.gold:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 2px 0 #6f4a14}
+.gold:disabled{opacity:.45}
+.gold.ready{background:linear-gradient(180deg,#2f3a2f,#1d261e);color:#bff3d2;box-shadow:inset 0 0 0 1.5px rgba(95,211,141,.75),0 4px 0 rgba(0,0,0,.5)}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.act{height:58px;border-radius:15px;font-weight:700;font-size:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;
+  background:linear-gradient(180deg,#2a313b,#171c23);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 4px 0 rgba(0,0,0,.5);color:var(--ink);transition:box-shadow .2s}
+.act small{font-family:var(--f-num);font-weight:500;font-size:11.5px;letter-spacing:.14em;color:var(--dim);margin-top:3px}
+.act.hit{background:linear-gradient(180deg,#25a067,#137046)}
+.act.stand{background:linear-gradient(180deg,#3d2a27,#241614);box-shadow:inset 0 0 0 1px rgba(236,106,85,.55),0 4px 0 rgba(0,0,0,.5)}
+.act.dbl{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:var(--gold-ink)}
+.act.dbl small{color:rgba(36,22,4,.7)}
+.act:active{transform:translateY(2px)}
+.act:disabled{opacity:.3}
+.act.rec{box-shadow:0 0 0 2.5px var(--cyan),0 0 22px rgba(98,227,242,.6),0 4px 0 rgba(0,0,0,.5)}
+.status{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);min-height:20px}
+.status b{font-family:var(--f-num);font-weight:500;color:var(--ink);letter-spacing:.03em}
+.status .t{font-family:var(--f-num);color:var(--gold);letter-spacing:.04em}
+.status.center{justify-content:center;text-align:center}
+.wait{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:54px;padding:10px 16px;border-radius:14px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+.wait .t{font-family:var(--f-num);color:var(--gold);letter-spacing:.04em;white-space:nowrap}
+.wait small{display:block;font-size:12px;color:var(--muted)}
+.bar{height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--cyan);transform-origin:left center}
+.hint{height:32px;padding:0 12px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--cyan-ink);flex:none;
+  background:linear-gradient(180deg,#a8f1fa,#46c6d8);box-shadow:0 0 0 1px rgba(255,255,255,.3) inset}
+.hint svg{width:15px;height:15px;fill:currentColor}
+.result{text-align:center;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:26px;line-height:1.1}
+.result small{display:block;font-family:var(--f-body);font-style:normal;font-weight:500;font-size:12px;color:var(--muted);margin-top:3px}
+.result.pos{color:var(--good)}.result.neg{color:var(--danger)}.result.even{color:var(--muted)}
+.rules{text-align:center;font-size:11.5px;color:var(--dim);letter-spacing:.02em}
+.recover{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(236,106,85,.12);box-shadow:inset 0 0 0 1px rgba(236,106,85,.45)}
+.recover div{flex:1;min-width:0}
+.recover b{display:block;font-family:var(--f-display);font-style:italic;font-size:19px}
+.recover span{font-size:12.5px;color:var(--muted)}
+.recover .gold{flex:none;height:44px;padding:0 14px;font-size:14px}
+.lform{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:10px;padding:14px;border-radius:18px;
+  background:rgba(8,11,15,.94);box-shadow:0 0 0 1px rgba(255,255,255,.1),0 18px 40px rgba(0,0,0,.5)}
+.lform .lt{grid-column:1/-1;font-size:13px;color:var(--muted);text-align:center}
+.lform .lt b{color:var(--ink)}
+.lform input{height:48px;background:rgba(255,255,255,.07)}
+.lform .pin{letter-spacing:.5em;text-align:center;font-family:var(--f-num)}
+.lform .lerr{grid-column:1/-1}
+.lform .lbtns{grid-column:1/-1}
+.lerr{min-height:1.2em;font-size:12.5px;color:#ffb3a6;text-align:center}
+@media (min-width:700px){
+  .lform{grid-template-columns:minmax(0,1fr) 112px auto auto;align-items:center}
+  .lform .lbtns{grid-column:auto;display:contents}
+  .lform .lbtns .gold{flex:none;height:48px;padding:0 22px}
+  .lform .lbtns .ghost{height:48px;order:1}
+  .lform .lerr{order:2;min-height:0}
+}
+
+/* ---------- sheets ---------- */
+.overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(4,6,9,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.sheet{width:min(100%,420px);max-height:100%;overflow:auto;padding:20px;border-radius:20px;display:flex;flex-direction:column;gap:12px;
+  background:linear-gradient(180deg,#141b22,#0c1015);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 24px 60px rgba(0,0,0,.6)}
+.sheet h2{margin:0;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:26px;color:var(--gold)}
+.sheet h3{margin:4px 0 0;font-size:11.5px;letter-spacing:.16em;color:var(--dim);font-weight:500}
+.sheet p{margin:0;font-size:14px;line-height:1.55}
+.games{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gcard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:14px;text-align:left;min-height:96px;
+  background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--line)}
+.gcard b{font-family:var(--f-display);font-style:italic;font-weight:800;font-size:19px;color:var(--gold);display:flex;align-items:center;gap:6px}
+.gcard b em{font-family:var(--f-num);font-style:normal;font-weight:500;font-size:9.5px;letter-spacing:.14em;color:var(--cyan-ink);background:var(--cyan);border-radius:4px;padding:2px 4px 1px}
+.gcard span{font-size:12px;color:var(--muted);line-height:1.45}
+.gcard.on{box-shadow:inset 0 0 0 1.5px var(--cyan);background:rgba(98,227,242,.08)}
+.gcard.on span::after{content:"지금 여기";display:block;color:var(--cyan)}
+.sbtn{min-height:44px;padding:10px;border-radius:12px;font-weight:600;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.sbtn.pri{background:linear-gradient(180deg,var(--gold-hi),var(--gold));color:var(--gold-ink);box-shadow:none}
+.sbtn.dng{color:var(--danger);box-shadow:inset 0 0 0 1px rgba(236,106,85,.6);background:transparent}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.notice{font-size:12.5px;line-height:1.6;color:var(--muted);background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px}
+.notice b{color:var(--ink)}
+.top5{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.top5 li{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 2px;border-top:1px solid var(--line)}
+.top5 li:first-child{border-top:0}
+.top5 i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--f-num);background:rgba(255,255,255,.1);flex:none}
+.top5 li:nth-child(1) i{background:linear-gradient(180deg,#ffe9a8,#c9963c);color:#241604}
+.top5 li:nth-child(2) i{background:linear-gradient(180deg,#f1f4f7,#9aa6b1);color:#151a1f}
+.top5 li:nth-child(3) i{background:linear-gradient(180deg,#f2c39a,#a8673a);color:#241306}
+.top5 span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top5 b{font-family:var(--f-num);font-weight:500;color:var(--gold);letter-spacing:.03em}
+.top5 li.me span{color:var(--gold)}
+.toast{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:70;max-width:calc(100% - 32px);
+  padding:10px 16px;border-radius:999px;background:var(--ink);color:#11161b;font-size:13px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.boot{position:fixed;inset:0;z-index:30;display:grid;place-items:center;text-align:center;padding:24px;background:var(--night);transition:opacity .5s}
+.boot b{display:block;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:34px;color:var(--gold)}
+.boot span{display:block;margin-top:10px;color:var(--muted);font-size:13.5px}
+.boot.done{opacity:0;pointer-events:none}
+@media (max-width:430px){
+  .brand b{font-size:20px;gap:5px}
+  .brand b em{font-size:9px;padding:2px 4px 1px}
+  .brand small{font-size:11px}
+  #voiceBtn{display:none}
+  .hright{gap:5px}
+  .bank{margin-right:2px}
+}
+@media (min-width:760px) and (min-aspect-ratio:1/1){
+  .brand b{font-size:26px}
+  .act{height:62px;font-size:17px}
+}
+@media (max-height:520px){
+  .hud{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-bottom:4px}
+  .brand small{display:none}
+  .dock{padding-top:18px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .dock>div{gap:7px;width:min(100%,620px)}
+  .chip{width:42px;height:42px;font-size:13px}
+  .gold{height:44px;font-size:15px}
+  .ghost{height:40px}
+  .act{height:46px;font-size:15px}
+  .act small{display:none}
+  .rules{display:none}
+  .result{font-size:21px}
+  .wait{min-height:44px;padding:7px 14px}
+  .betbox{flex-direction:row;align-items:center}
+  .betbox .chips{flex:none;gap:8px}
+  .betbox .row{flex:1;min-width:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-label="블랙잭 테이블 3D 화면"></canvas>
+<div class="tags" id="tags">
+  <div class="bubble hide" id="bubble"><i>AI DEALER</i><span id="bubbleText"></span></div>
+</div>
+<header class="hud" id="hud">
+  <button class="brand" id="brandBtn" type="button" aria-label="게임 선택 열기"><b>Blackjack<em>BETA</em><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></b><small id="meta">GYBM · 6덱 · 블랙잭 3:2</small></button>
+  <div class="hright">
+    <div class="bank" id="bankBox" hidden><em id="rankTxt">CHIPS</em><b id="bank">0</b></div>
+    <button class="ibtn" id="soundBtn" type="button" aria-label="효과음 켜기/끄기"></button>
+    <button class="ibtn" id="voiceBtn" type="button" aria-label="딜러 음성 켜기/끄기"></button>
+    <button class="ibtn" id="menuBtn" type="button" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+  </div>
+</header>
+<div class="conn" id="conn" hidden>서버에 연결하는 중… 무료 서버는 깨어나는 데 1분쯤 걸려요.</div>
+<section class="dock"><div id="dock"></div></section>
+
+<div class="overlay" id="menuSheet" hidden>
+  <div class="sheet" role="dialog" aria-label="메뉴">
+    <h2>게임 선택</h2>
+    <div class="games">
+      <button class="gcard" type="button" data-go="holdem"><b>홀덤</b><span>5인 텍사스 홀덤 · AI 알파 상주</span></button>
+      <button class="gcard on" type="button" disabled><b>블랙잭<em>BETA</em></b><span>AI 딜러 · 최대 5명</span></button>
+    </div>
+    <div class="notice" id="menuInfo"></div>
+    <div class="grid2">
+      <button type="button" class="sbtn" id="soundToggle"></button>
+      <button type="button" class="sbtn" id="voiceToggle"></button>
+    </div>
+    <button type="button" class="sbtn dng" id="leaveBtn">자리에서 일어나기</button>
+    <div class="notice"><b>규칙</b> · 6덱 슈 · 딜러는 모든 17에서 멈춰요 · 블랙잭은 3:2 · 더블은 첫 두 장에서 (스플릿 후에도 OK) · 스플릿은 한 번 · 에이스 스플릿은 한 장씩만 · 인슈어런스 없음 · 칩은 홀덤 계정과 같아요.</div>
+    <button type="button" class="sbtn" data-close="menuSheet">닫기</button>
+  </div>
+</div>
+<div class="overlay" id="askSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <p id="askText"></p>
+    <div class="grid2"><button type="button" class="sbtn" id="askNo">취소</button><button type="button" class="sbtn pri" id="askYes">확인</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="boot" id="boot"><div><b>Blackjack</b><span id="bootMsg">테이블을 준비하는 중…</span></div></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+(() => {
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n || 0).toLocaleString('ko-KR');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// same storage as the holdem page, so one login (and the sound settings) covers both games
+const lsGet = k => { try { return localStorage.getItem('holdem.' + k); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem('holdem.' + k) : localStorage.setItem('holdem.' + k, String(v)); } catch {} };
+let SNAP = false; // when true every animation jumps to its end (first paint, hidden tab)
+const wait = ms => (SNAP ? Promise.resolve() : new Promise(r => setTimeout(r, ms)));
+let toastT;
+function toast(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); }
+
+if (!window.THREE) { $('bootMsg').textContent = '3D 엔진을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.'; return; }
+if (typeof window.io !== 'function') { $('bootMsg').textContent = '게임 서버에 연결할 수 없어요. 홀덤 링크로 들어와 주세요.'; return; }
+
+/* ================= sound: synthesised, no files ================= */
+const SND = {
+  ctx: null, on: lsGet('sound') !== '0', noise: null,
+  ensure() { try { if (!this.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; this.ctx = new C(); } if (this.ctx.state === 'suspended') this.ctx.resume(); return this.ctx; } catch { return null; } },
+  nbuf(c) { if (this.noise) return this.noise; const b = c.createBuffer(1, Math.floor(c.sampleRate * .3), c.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return (this.noise = b); },
+  tone(c, type, f0, f1, t, dur, peak) {
+    const o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + .005); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + .02);
+  },
+  swish(c, t, f, dur, peak) {
+    const s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain(); s.buffer = this.nbuf(c); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = .9;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(fl); fl.connect(g); g.connect(c.destination); s.start(t); s.stop(t + dur + .02);
+  },
+  play(kind, when = 0) {
+    if (!this.on || SNAP || document.visibilityState !== 'visible') return;
+    const c = this.ensure(); if (!c || c.state !== 'running') return; const t = c.currentTime + when;
+    if (kind === 'card') this.swish(c, t, 2600, .09, .3);
+    else if (kind === 'flip') { this.swish(c, t, 3400, .05, .22); this.swish(c, t + .07, 2200, .06, .18); }
+    else if (kind === 'chip') { this.tone(c, 'triangle', 3200, 0, t, .05, .09); this.tone(c, 'triangle', 4400, 0, t + .035, .05, .07); }
+    else if (kind === 'chips') for (let k = 0; k < 6; k++) this.play('chip', when + k * .055 + Math.random() * .02);
+    else if (kind === 'win') [659.3, 784, 987.8, 1318.5].forEach((f, k) => this.tone(c, 'sine', f, 0, t + k * .09, .5, .08));
+    else if (kind === 'bj') [523.3, 659.3, 784, 1046.5, 1318.5, 1568].forEach((f, k) => this.tone(c, 'triangle', f, 0, t + k * .07, .6, .07));
+    else if (kind === 'lose') this.tone(c, 'sine', 300, 150, t, .35, .12);
+    else if (kind === 'shuffle') for (let k = 0; k < 14; k++) this.swish(c, t + k * .045, 1800 + Math.random() * 1600, .05, .16);
+    else if (kind === 'blip') this.tone(c, 'sine', 1320, 1760, t, .12, .06);
+    else if (kind === 'turn') { this.tone(c, 'sine', 880, 0, t, .14, .07); this.tone(c, 'sine', 1320, 0, t + .12, .2, .07); }
+  },
+};
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => SND.ensure(), { passive: true }));
+
+/* ================= dealer voice: the device's own text-to-speech ================= */
+const VOICE = {
+  ok: typeof window.speechSynthesis === 'object' && typeof window.SpeechSynthesisUtterance === 'function',
+  on: lsGet('voice') !== '0', v: null, primed: false,
+  load() {
+    if (!this.ok) return;
+    try {
+      const vs = speechSynthesis.getVoices() || [];
+      const score = v => (/yuna|유나|heami|sunhi|injoon|google/i.test(v.name) ? 3 : 0) + (v.localService ? 2 : 0) - (/eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley/i.test(v.name) ? 6 : 0);
+      this.v = vs.filter(v => /^ko/i.test(v.lang)).sort((a, b) => score(b) - score(a))[0] || null;
+    } catch {}
+  },
+  prime() { if (!this.ok || this.primed) return; this.primed = true; try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } catch {} },
+  say(text) {
+    if (!this.ok || !this.on || SNAP || document.visibilityState !== 'visible') return;
+    if (!this.v) this.load();
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text.replace(/[!~…]/g, '.'));
+      u.lang = 'ko-KR'; if (this.v) u.voice = this.v; u.pitch = .92; u.rate = 1.06;
+      u.onstart = () => (robot.talking = true); u.onend = u.onerror = () => (robot.talking = false);
+      setTimeout(() => speechSynthesis.speak(u), 40);
+    } catch {}
+  },
+};
+if (VOICE.ok) { VOICE.load(); try { speechSynthesis.addEventListener('voiceschanged', () => VOICE.load()); } catch {} }
+['touchend', 'click'].forEach(ev => addEventListener(ev, () => VOICE.prime(), { passive: true }));
+
+/* ================= three.js scene ================= */
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, alpha: true, powerPreference: 'high-performance' }); }
+catch (e) { $('bootMsg').textContent = '이 기기에서는 3D 화면을 켤 수 없어요.'; return; }
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, .1, 140);
+const camTarget = new THREE.Vector3();
+const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const texOf = (c, srgb = true) => { const t = new THREE.CanvasTexture(c); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO; return t; };
+function rrPath(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function roundedRectShape(w, h, r) {
+  const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r); s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+function normUV(geo, w, h, x0 = -w / 2, y0 = -h / 2) {
+  const p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - x0) / w, (p.getY(i) - y0) / h);
+  uv.needsUpdate = true; return geo;
+}
+function roundedBox(w, h, d, r) {
+  const geo = new THREE.ExtrudeGeometry(roundedRectShape(w - 2 * r, h - 2 * r, Math.min(r, (Math.min(w, h) - 2 * r) / 2 - .001)),
+    { depth: d - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelSegments: 5, curveSegments: 10 });
+  geo.translate(0, 0, -(d - 2 * r) / 2); geo.computeVertexNormals(); return geo;
+}
+
+/* ---------- table geometry (1 unit ≈ 6.3 cm: a card is 1.0 × 1.4) ----------
+   The felt is a half disc of radius R around P0 on the dealer's straight edge. Five seats sit on the curve,
+   seat 0 (first base, dealt first) on the dealer's left = the right side of the screen. */
+const R = 8.6, ZE = -3.4, P0 = new THREE.Vector3(0, 0, ZE);
+const DEALER_Z = -1.05;
+const SEAT_DEG = [36, 63, 90, 117, 144];
+const TH = SEAT_DEG.map(d => d * Math.PI / 180);
+const U = TH.map(t => new THREE.Vector3(Math.cos(t), 0, Math.sin(t)));        // outward, towards the player
+const RIGHT = TH.map(t => new THREE.Vector3(Math.sin(t), 0, -Math.cos(t)));   // the seated player's right hand
+const YAW = TH.map(t => Math.PI / 2 - t);                                     // cards face their player
+const RC = 5.2, RB = 6.85;                                                    // cards, bet circle
+const at = (s, r, side = 0, y = 0) => new THREE.Vector3(P0.x + U[s].x * r + RIGHT[s].x * side, y, P0.z + U[s].z * r + RIGHT[s].z * side);
+const SHOE_POS = new THREE.Vector3(6.05, 0, -2.5), SHOE_YAW = .38;
+const SHOE_MOUTH = SHOE_POS.clone().add(new THREE.Vector3(-.78, .62, .335).applyAxisAngle(new THREE.Vector3(0, 1, 0), SHOE_YAW));
+const DISCARD_POS = new THREE.Vector3(-6.05, 0, -2.5);
+const RACK_POS = new THREE.Vector3(0, 0, ZE + .62);
+const CW = 1, CH = 1.4, CT = .014;
+
+// lights
+scene.add(new THREE.HemisphereLight(0xfff0dc, 0x141009, .55));
+const spot = new THREE.SpotLight(0xffe6c2, 1.55, 0, .7, .6, 1);
+spot.position.set(0, 18, 4.5); spot.target.position.set(0, 0, .6);
+spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.camera.near = 6; spot.shadow.camera.far = 34; spot.shadow.bias = -.0004; spot.shadow.normalBias = .02;
+scene.add(spot, spot.target);
+const rim = new THREE.DirectionalLight(0x8fd7ff, .32); rim.position.set(-6, 7, -9); scene.add(rim);
+const warm = new THREE.PointLight(0xffb36b, .35, 32, 2); warm.position.set(7, 5, 7); scene.add(warm);
+
+// felt print
+function arcText(g, text, cx, cy, r, font, color, spacing = 0) {
+  g.save(); g.font = font; g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const ws = [...text].map(ch => g.measureText(ch).width + spacing);
+  const span = ws.reduce((a, b) => a + b, 0) / r;
+  let acc = 0;
+  [...text].forEach((ch, i) => {
+    const th = Math.PI / 2 + span / 2 - (acc + ws[i] / 2) / r; acc += ws[i];
+    g.save(); g.translate(cx + r * Math.cos(th), cy + r * Math.sin(th)); g.rotate(th - Math.PI / 2); g.fillText(ch, 0, 0); g.restore();
+  });
+  g.restore();
+}
+function feltCanvas() {
+  const W = 2048, H = 1024, s = H / R, c = mkCanvas(W, H), g = c.getContext('2d');
+  const bg = g.createRadialGradient(W / 2, H * .62, 40, W / 2, H * .5, W * .62);
+  bg.addColorStop(0, '#187585'); bg.addColorStop(.5, '#0f5462'); bg.addColorStop(1, '#073039');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const img = g.getImageData(0, 0, W, H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - .5) * 16; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+  const gold = 'rgba(232,186,98,.78)', goldSoft = 'rgba(232,186,98,.42)';
+  g.lineWidth = 2; g.strokeStyle = goldSoft; g.beginPath(); g.arc(W / 2, 0, (R - .28) * s, .03 * Math.PI, .97 * Math.PI); g.stroke();
+  g.lineWidth = 2.5; g.beginPath(); g.arc(W / 2, 0, 7.85 * s, .1 * Math.PI, .9 * Math.PI); g.stroke();
+  arcText(g, 'BLACKJACK PAYS 3 TO 2', W / 2, 0, 3.42 * s, 'italic 800 62px "Playfair Display", Georgia, serif', gold, 3);
+  arcText(g, 'DEALER MUST STAND ON ALL 17s', W / 2, 0, 4.02 * s, '600 28px Oswald, "Arial Narrow", sans-serif', goldSoft, 8);
+  // five betting circles
+  TH.forEach((t, i) => {
+    const x = W / 2 + Math.cos(t) * RB * s, y = Math.sin(t) * RB * s;
+    g.lineWidth = 5; g.strokeStyle = gold; g.beginPath(); g.arc(x, y, .66 * s, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = goldSoft; g.beginPath(); g.arc(x, y, .55 * s, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(0,0,0,.14)'; g.beginPath(); g.arc(x, y, .55 * s, 0, Math.PI * 2); g.fill();
+    // seat number on the player's side of the circle
+    const nx = W / 2 + Math.cos(t) * (RB + .9) * s, ny = Math.sin(t) * (RB + .9) * s;
+    g.save(); g.translate(nx, ny); g.rotate(t - Math.PI / 2); g.fillStyle = goldSoft; g.font = '600 24px Oswald, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(i + 1), 0, 0); g.restore();
+  });
+  // AI emblem under the dealer
+  g.save(); g.translate(W / 2, 1.5 * s); g.strokeStyle = goldSoft; g.lineWidth = 2.5; g.beginPath();
+  for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(.5 * s * Math.cos(a), .5 * s * Math.sin(a)); }
+  g.closePath(); g.stroke(); g.fillStyle = goldSoft; g.font = 'italic 800 46px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AI', 0, 3); g.restore();
+  return c;
+}
+function buildTable() {
+  const half = new THREE.Shape(); half.moveTo(-R, 0); half.absarc(0, 0, R, Math.PI, Math.PI * 2, false); half.lineTo(-R, 0);
+  const fg = normUV(new THREE.ShapeGeometry(half, 120), 2 * R, R, -R, -R); fg.rotateX(-Math.PI / 2); fg.translate(0, 0, ZE);
+  const felt = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: texOf(feltCanvas()), roughness: .96, metalness: 0 })); felt.receiveShadow = true; scene.add(felt);
+  const R2 = R + .95, half2 = new THREE.Shape(); half2.moveTo(-R2, 0); half2.absarc(0, 0, R2, Math.PI, Math.PI * 2, false); half2.lineTo(-R2, 0);
+  const bg = new THREE.ExtrudeGeometry(half2, { depth: 1.2, bevelEnabled: false, curveSegments: 64 }); bg.rotateX(-Math.PI / 2); bg.translate(0, -1.22, ZE);
+  const wood = new THREE.MeshStandardMaterial({ color: 0x3b2316, roughness: .55, metalness: .08 });
+  scene.add(new THREE.Mesh(bg, wood));
+  const leather = new THREE.MeshStandardMaterial({ color: 0x24150e, roughness: .48, metalness: .05 });
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(R + .45, .5, 18, 160, Math.PI), leather);
+  rail.geometry.rotateZ(Math.PI); rail.geometry.rotateX(-Math.PI / 2); rail.position.set(0, .14, ZE); rail.castShadow = true; rail.receiveShadow = true; scene.add(rail);
+  [-1, 1].forEach(sx => { const cap = new THREE.Mesh(new THREE.SphereGeometry(.5, 18, 14), leather); cap.position.set(sx * (R + .45), .14, ZE); scene.add(cap); });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd8a64a, roughness: .3, metalness: .85 });
+  const trim = new THREE.Mesh(new THREE.TorusGeometry(R - .12, .03, 8, 180, Math.PI), brass);
+  trim.geometry.rotateZ(Math.PI); trim.geometry.rotateX(-Math.PI / 2); trim.position.set(0, .015, ZE); scene.add(trim);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(2 * (R + .95), .34, .6), wood); edge.position.set(0, -.02, ZE - .3); edge.receiveShadow = true; scene.add(edge);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(2 * (R + .95), .05, .1), brass); strip.position.set(0, .17, ZE - .02); scene.add(strip);
+}
+
+/* ---------- cards ---------- */
+const SUIT = {
+  h: new Path2D('M50 90C22 68 5 51 5 31 5 16 17 5 31 5c9 0 16 5 19 13 3-8 10-13 19-13 14 0 26 11 26 26 0 20-17 37-45 59z'),
+  d: new Path2D('M50 3C60 22 74 37 90 50 74 63 60 78 50 97 40 78 26 63 10 50 26 37 40 22 50 3z'),
+  s: new Path2D('M50 4C62 22 95 38 95 62c0 15-11 25-24 25-9 0-16-4-19-11 1 9 5 16 14 21H34c9-5 13-12 14-21-3 7-10 11-19 11C16 87 5 77 5 62 5 38 38 22 50 4z'),
+  c: new Path2D(['M29 28a21 21 0 1 0 42 0a21 21 0 1 0-42 0Z', 'M6 58a21 21 0 1 0 42 0a21 21 0 1 0-42 0Z', 'M52 58a21 21 0 1 0 42 0a21 21 0 1 0-42 0Z', 'M37 50a13 13 0 1 0 26 0a13 13 0 1 0-26 0Z', 'M45 50h10c0 22 4 34 14 46H31c10-12 14-24 14-46z'].join('')),
+};
+function suitAt(g, s, x, y, size, rot = 0) { g.save(); g.translate(x, y); g.rotate(rot); g.scale(size / 100, size / 100); g.translate(-50, -50); g.fill(SUIT[s]); g.restore(); }
+const PIPS = (() => { const L = .33, M = .5, Q = .67, T = .19, B = .81; return {
+  2: [[M, T], [M, B]], 3: [[M, T], [M, .5], [M, B]], 4: [[L, T], [Q, T], [L, B], [Q, B]], 5: [[L, T], [Q, T], [M, .5], [L, B], [Q, B]],
+  6: [[L, T], [Q, T], [L, .5], [Q, .5], [L, B], [Q, B]], 7: [[L, T], [Q, T], [M, .345], [L, .5], [Q, .5], [L, B], [Q, B]],
+  8: [[L, T], [Q, T], [M, .345], [L, .5], [Q, .5], [M, .655], [L, B], [Q, B]],
+  9: [[L, T], [Q, T], [L, .397], [Q, .397], [M, .5], [L, .603], [Q, .603], [L, B], [Q, B]],
+  10: [[L, T], [Q, T], [M, .29], [L, .397], [Q, .397], [L, .603], [Q, .603], [M, .71], [L, B], [Q, B]] }; })();
+function faceCanvas(card) {
+  const W = 256, H = 358, c = mkCanvas(W, H), g = c.getContext('2d');
+  const red = card[1] === 'h' || card[1] === 'd', ink = red ? '#c21f2c' : '#16161b';
+  const paper = g.createLinearGradient(0, 0, W, H); paper.addColorStop(0, '#ffffff'); paper.addColorStop(1, '#efe8d9');
+  g.fillStyle = paper; g.fillRect(0, 0, W, H);
+  rrPath(g, 2, 2, W - 4, H - 4, 16); g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.16)'; g.stroke();
+  g.fillStyle = ink;
+  const rank = card[0] === 'T' ? '10' : card[0];
+  const corner = () => {
+    g.font = `600 ${rank.length > 1 ? 48 : 56}px Oswald, "Arial Narrow", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    if (rank.length > 1) { g.save(); g.translate(33, 60); g.scale(.82, 1); g.fillText(rank, 0, 0); g.restore(); } else g.fillText(rank, 33, 62);
+    suitAt(g, card[1], 33, 88, 30);
+  };
+  corner(); g.save(); g.translate(W, H); g.rotate(Math.PI); corner(); g.restore();
+  if (card[0] === 'A') suitAt(g, card[1], W / 2, H / 2, 118);
+  else if ('JQK'.includes(card[0])) {
+    const fx = 62, fy = 72, fw = W - 124, fh = H - 144;
+    const tint = g.createLinearGradient(0, fy, 0, fy + fh); tint.addColorStop(0, 'rgba(230,182,92,.28)'); tint.addColorStop(1, 'rgba(230,182,92,.06)');
+    g.fillStyle = tint; rrPath(g, fx, fy, fw, fh, 10); g.fill(); g.lineWidth = 2.5; g.strokeStyle = ink; g.stroke();
+    rrPath(g, fx + 7, fy + 7, fw - 14, fh - 14, 6); g.lineWidth = 1; g.stroke();
+    g.fillStyle = ink; g.font = 'italic 800 104px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(card[0], W / 2, H / 2 - 14);
+    suitAt(g, card[1], W / 2, H / 2 + 62, 40);
+    g.save(); g.translate(W / 2, fy + 24); g.fillStyle = '#c9933a';
+    if (card[0] === 'K') { g.beginPath(); g.moveTo(-22, 8); g.lineTo(-22, -6); g.lineTo(-11, 2); g.lineTo(0, -12); g.lineTo(11, 2); g.lineTo(22, -6); g.lineTo(22, 8); g.closePath(); g.fill(); }
+    else if (card[0] === 'Q') { [-16, -8, 0, 8, 16].forEach((x, i) => { g.beginPath(); g.arc(x, -Math.abs(i - 2) * -3 - 2, i === 2 ? 5 : 3.5, 0, Math.PI * 2); g.fill(); }); g.fillRect(-20, 4, 40, 4); }
+    else { g.beginPath(); g.ellipse(0, 0, 6, 14, .5, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  } else {
+    PIPS[card[0] === 'T' ? 10 : +card[0]].forEach(([x, y]) => suitAt(g, card[1], x * W, y * H, 46, y > .5 ? Math.PI : 0));
+  }
+  return c;
+}
+function backCanvas() {
+  const W = 256, H = 358, c = mkCanvas(W, H), g = c.getContext('2d');
+  g.fillStyle = '#f6f1e6'; g.fillRect(0, 0, W, H);
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#174067'); bg.addColorStop(1, '#0a1a2e');
+  g.fillStyle = bg; rrPath(g, 14, 14, W - 28, H - 28, 10); g.fill();
+  g.save(); rrPath(g, 14, 14, W - 28, H - 28, 10); g.clip(); g.strokeStyle = 'rgba(230,182,92,.24)'; g.lineWidth = 2;
+  for (let k = -H; k < W + H; k += 21) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + H, H); g.stroke(); g.beginPath(); g.moveTo(k, H); g.lineTo(k + H, 0); g.stroke(); }
+  g.restore();
+  g.strokeStyle = 'rgba(230,182,92,.8)'; g.lineWidth = 2; rrPath(g, 22, 22, W - 44, H - 44, 7); g.stroke();
+  g.fillStyle = '#0a1a2e'; g.beginPath(); g.arc(W / 2, H / 2, 54, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#e6b65c'; g.lineWidth = 4; g.stroke(); g.lineWidth = 1.5; g.beginPath(); g.arc(W / 2, H / 2, 45, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#e6b65c'; g.font = 'italic 800 56px "Playfair Display", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('AI', W / 2 - 2, H / 2 + 3);
+  return c;
+}
+const CARD_SHAPE = roundedRectShape(CW, CH, .075);
+const CARD_BODY = new THREE.ExtrudeGeometry(CARD_SHAPE, { depth: CT, bevelEnabled: false, curveSegments: 6 }); CARD_BODY.translate(0, 0, -CT / 2); CARD_BODY.rotateX(-Math.PI / 2);
+const CARD_FACE = normUV(new THREE.ShapeGeometry(CARD_SHAPE, 6), CW, CH); CARD_FACE.rotateX(-Math.PI / 2);
+const CARD_BACK = normUV(new THREE.ShapeGeometry(CARD_SHAPE, 6), CW, CH); CARD_BACK.rotateX(Math.PI / 2);
+const EDGE_MAT = new THREE.MeshStandardMaterial({ color: 0xefe9dc, roughness: .6 });
+let BACK_MAT;
+const faceMats = new Map();
+const faceMat = card => { if (!faceMats.has(card)) faceMats.set(card, new THREE.MeshStandardMaterial({ map: texOf(faceCanvas(card)), roughness: .42, metalness: 0 })); return faceMats.get(card); };
+// card = null makes a face-down card whose face is filled in when it is turned over
+function makeCard(card) {
+  const grp = new THREE.Group();
+  const body = new THREE.Mesh(CARD_BODY, EDGE_MAT); body.castShadow = true; body.receiveShadow = true;
+  const face = new THREE.Mesh(CARD_FACE, card ? faceMat(card) : BACK_MAT); face.position.y = CT / 2 + .0008; face.receiveShadow = true;
+  const back = new THREE.Mesh(CARD_BACK, BACK_MAT); back.position.y = -CT / 2 - .0008;
+  grp.add(body, face, back); grp.userData.card = card; return grp;
+}
+
+/* ---------- chips ---------- */
+const DEN = [500, 100, 25, 5];
+const CHIP_COL = { 5: ['#c4262f', '#f6f1e6', '#fff'], 25: ['#1d8c4e', '#f6f1e6', '#fff'], 100: ['#26262c', '#f6f1e6', '#fff'], 500: ['#6e2fa8', '#f3d37a', '#f3d37a'] };
+const CHIP_R = .3, CHIP_H = .066;
+const CHIP_GEO = new THREE.CylinderGeometry(CHIP_R, CHIP_R, CHIP_H, 36, 1);
+function chipFaceCanvas(den) {
+  const [c0, c1, ink] = CHIP_COL[den], S = 256, c = mkCanvas(S, S), g = c.getContext('2d');
+  g.fillStyle = c0; g.fillRect(0, 0, S, S);
+  g.save(); g.translate(S / 2, S / 2);
+  for (let k = 0; k < 8; k++) { g.save(); g.rotate(k * Math.PI / 4); g.fillStyle = c1; rrPath(g, -15, -S / 2, 30, 34, 4); g.fill(); g.restore(); }
+  g.strokeStyle = c1; g.lineWidth = 5; g.setLineDash([10, 9]); g.beginPath(); g.arc(0, 0, 82, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  const inner = g.createRadialGradient(-14, -18, 6, 0, 0, 70); inner.addColorStop(0, 'rgba(255,255,255,.22)'); inner.addColorStop(1, 'rgba(0,0,0,.12)');
+  g.fillStyle = inner; g.beginPath(); g.arc(0, 0, 70, 0, Math.PI * 2); g.fill();
+  g.fillStyle = ink; g.font = `600 ${den >= 100 ? 62 : 72}px Oswald, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(den), 0, 4);
+  g.restore(); return c;
+}
+function chipSideCanvas(den) {
+  const [c0, c1] = CHIP_COL[den], c = mkCanvas(256, 16), g = c.getContext('2d');
+  g.fillStyle = c0; g.fillRect(0, 0, 256, 16); g.fillStyle = c1; for (let k = 0; k < 8; k++) g.fillRect(k * 32 + 9, 0, 14, 16);
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, 0, 256, 1.5); g.fillRect(0, 14.5, 256, 1.5); return c;
+}
+const chipMats = {};
+function chipMat(den) {
+  if (!chipMats[den]) {
+    const face = new THREE.MeshStandardMaterial({ map: texOf(chipFaceCanvas(den)), roughness: .38, metalness: .05 });
+    chipMats[den] = [new THREE.MeshStandardMaterial({ map: texOf(chipSideCanvas(den)), roughness: .45 }), face, face];
+  }
+  return chipMats[den];
+}
+function breakdown(amount) { const out = []; let rest = amount; for (const d of DEN) { const n = Math.floor(rest / d); if (n) out.push([d, n]); rest -= n * d; } return out; }
+// columns huddle in a little cluster (local x = the player's right, local z = towards the player)
+const CLUSTER = [[[0, 0]], [[-.31, 0], [.31, 0]], [[-.31, .2], [.31, .2], [0, -.34]], [[-.31, .24], [.31, .24], [-.31, -.36], [.31, -.36]]];
+function makeStack(amount) {
+  const grp = new THREE.Group(), cols = breakdown(amount).slice(0, 4), spots = CLUSTER[cols.length - 1] || [];
+  cols.forEach(([d, n], ci) => {
+    for (let i = 0; i < Math.min(n, 14); i++) {
+      const m = new THREE.Mesh(CHIP_GEO, chipMat(d)); m.position.set(spots[ci][0] + (Math.random() - .5) * .02, CHIP_H / 2 + i * CHIP_H, spots[ci][1] + (Math.random() - .5) * .02);
+      m.rotation.y = Math.random() * Math.PI * 2; m.castShadow = true; m.receiveShadow = true; grp.add(m);
+    }
+  });
+  grp.userData.amount = amount; return grp;
+}
+function chipRollCanvas(den) {
+  const [c0, c1] = CHIP_COL[den], c = mkCanvas(128, 32), g = c.getContext('2d');
+  g.fillStyle = c0; g.fillRect(0, 0, 128, 32); g.fillStyle = c1; for (let k = 0; k < 4; k++) g.fillRect(k * 32 + 10, 0, 12, 32);
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, 29, 128, 3); return c;
+}
+function buildRack() {
+  const grp = new THREE.Group(); grp.position.copy(RACK_POS);
+  const tray = new THREE.Mesh(roundedBox(5.2, .3, 1.05, .1), new THREE.MeshStandardMaterial({ color: 0x14100d, roughness: .4, metalness: .3 }));
+  tray.position.y = .12; tray.receiveShadow = true; grp.add(tray);
+  [500, 500, 100, 100, 100, 25, 25, 25, 5, 5].forEach((d, i) => {
+    const t = texOf(chipRollCanvas(d)); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 11);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(.215, .215, .86, 24, 1, true), new THREE.MeshStandardMaterial({ map: t, roughness: .5 }));
+    roll.rotation.x = Math.PI / 2; roll.position.set(-2.25 + i * .5, .38, 0); roll.castShadow = true; grp.add(roll);
+  });
+  scene.add(grp);
+}
+
+/* ---------- shoe and discard tray ---------- */
+let discardStack, discardCount = 0, shoeStack, shoeLeft = 1;
+function buildShoe() {
+  const smoke = new THREE.MeshStandardMaterial({ color: 0x0f141c, roughness: .18, metalness: .35, transparent: true, opacity: .9 });
+  const shoe = new THREE.Group(); shoe.position.copy(SHOE_POS); shoe.rotation.y = SHOE_YAW;
+  const body = new THREE.Mesh(roundedBox(1.5, .9, 2.1, .14), smoke); body.position.y = .45; body.castShadow = true; shoe.add(body);
+  shoeStack = new THREE.Mesh(new THREE.BoxGeometry(1.08, .5, 1.65), new THREE.MeshStandardMaterial({ color: 0xece4d2, roughness: .8 }));
+  shoeStack.position.set(0, .62, .05); shoe.add(shoeStack);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(1.52, .07, 2.12), new THREE.MeshStandardMaterial({ color: 0xd8a64a, metalness: .8, roughness: .3 }));
+  band.position.y = .22; shoe.add(band);
+  scene.add(shoe);
+  const next = makeCard('As'); next.position.copy(SHOE_MOUTH); next.rotation.set(-.32, SHOE_YAW, Math.PI); next.children[1].visible = false; scene.add(next);
+  const tray = new THREE.Group(); tray.position.copy(DISCARD_POS); tray.rotation.y = -.3;
+  const tb = new THREE.Mesh(roundedBox(1.4, .3, 1.8, .08), smoke); tb.position.y = .15; tb.castShadow = true; tray.add(tb);
+  discardStack = new THREE.Mesh(new THREE.BoxGeometry(1.02, 1, 1.42), new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: .8 }));
+  discardStack.scale.y = .001; discardStack.position.y = .3; tray.add(discardStack);
+  scene.add(tray);
+}
+function setShoe(left) { shoeLeft = clamp(left, .04, 1); shoeStack.scale.y = shoeLeft; shoeStack.position.y = .37 + .25 * shoeLeft; }
+function setDiscard(n) { discardCount = n; discardStack.scale.y = Math.max(.001, n * .004); discardStack.position.y = .3 + discardStack.scale.y / 2; }
+
+/* ---------- the AI dealer robot ---------- */
+const robot = (() => {
+  const root = new THREE.Group(); root.position.set(0, -.2, ZE - 1.45);
+  const body = new THREE.Group(); root.add(body);
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2f5f7, roughness: .26, metalness: .06 });
+  const navy = new THREE.MeshStandardMaterial({ color: 0x1b2435, roughness: .5, metalness: .2 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0x62e3f2, emissive: 0x3fd0e2, emissiveIntensity: 1.4, roughness: .3 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xb3202c, roughness: .45 });
+  const torso = new THREE.Mesh(roundedBox(1.9, 1.5, 1.1, .42), navy); torso.position.y = 1.15; torso.castShadow = true; body.add(torso);
+  const shirt = new THREE.Mesh(new THREE.CircleGeometry(.5, 3), white); shirt.rotation.z = -Math.PI / 2; shirt.scale.set(1, .9, 1); shirt.position.set(0, 1.6, .56); body.add(shirt);
+  [-1, 1].forEach(sx => { const w = new THREE.Mesh(new THREE.ConeGeometry(.15, .3, 14), red); w.rotation.z = sx * Math.PI / 2; w.position.set(sx * .17, 1.72, .6); body.add(w); });
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(.075, 14, 10), red); knot.position.set(0, 1.72, .63); body.add(knot);
+  const badge = new THREE.Mesh(new THREE.CircleGeometry(.11, 20), glow); badge.position.set(-.55, 1.25, .56); body.add(badge);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.2, .24, .28, 18), white); neck.position.y = 2.0; body.add(neck);
+  const head = new THREE.Group(); head.position.y = 2.75; body.add(head);
+  const skull = new THREE.Mesh(roundedBox(2.1, 1.5, 1.35, .5), white); skull.castShadow = true; head.add(skull);
+  const faceC = mkCanvas(320, 200), faceT = texOf(faceC);
+  const screen = new THREE.Mesh(normUV(new THREE.ShapeGeometry(roundedRectShape(1.62, 1.0, .32), 10), 1.62, 1.0), new THREE.MeshBasicMaterial({ map: faceT, toneMapped: false }));
+  screen.position.z = .68; head.add(screen);
+  [-1, 1].forEach(sx => {
+    const ear = new THREE.Mesh(new THREE.CylinderGeometry(.24, .24, .16, 22), white); ear.rotation.z = Math.PI / 2; ear.position.x = sx * 1.08; head.add(ear);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.16, .035, 8, 24), glow); ring.rotation.y = Math.PI / 2; ring.position.x = sx * 1.17; head.add(ring);
+  });
+  const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .5, 8), white); stalk.position.y = 1.0; head.add(stalk);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(.11, 16, 12), glow); bulb.position.y = 1.3; head.add(bulb);
+  const hands = [-1, 1].map(sx => {
+    const h = new THREE.Mesh(new THREE.SphereGeometry(.3, 20, 16), white); h.scale.set(1, .82, 1.12); h.castShadow = true;
+    h.userData.rest = new THREE.Vector3(sx * 1.45, 1.05, .55); h.position.copy(h.userData.rest); body.add(h); return h;
+  });
+  scene.add(root);
+  const st = { mood: 'idle', blinkAt: 2, blink: 0, talking: false, mouth: 0, look: new THREE.Vector3(0, 2, 12), gen: 0, lastDraw: 0 };
+  const C = '#62e3f2';
+  function draw(t) {
+    const g = faceC.getContext('2d'), W = 320, H = 200;
+    const bg = g.createRadialGradient(W / 2, H * .35, 10, W / 2, H / 2, W * .65); bg.addColorStop(0, '#10222c'); bg.addColorStop(1, '#03070a');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.ellipse(W * .3, H * .18, W * .3, H * .1, -.2, 0, Math.PI * 2); g.fill();
+    g.save(); g.shadowColor = C; g.shadowBlur = 22; g.fillStyle = C; g.strokeStyle = C; g.lineCap = 'round';
+    const ex = [W / 2 - 62, W / 2 + 62], ey = 84, closed = st.blink > 0;
+    const m = st.mood;
+    if (closed && m !== 'happy') ex.forEach(x => { g.lineWidth = 9; g.beginPath(); g.moveTo(x - 22, ey); g.lineTo(x + 22, ey); g.stroke(); });
+    else if (m === 'happy') ex.forEach(x => { g.lineWidth = 11; g.beginPath(); g.arc(x, ey + 12, 24, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); });
+    else if (m === 'sad') ex.forEach((x, i) => { rrPath(g, x - 19, ey - 10, 38, 34, 14); g.fill(); g.lineWidth = 8; g.beginPath(); g.moveTo(x - 24, ey - (i ? 30 : 20)); g.lineTo(x + 24, ey - (i ? 20 : 30)); g.stroke(); });
+    else if (m === 'wow') ex.forEach(x => { g.lineWidth = 9; g.beginPath(); g.arc(x, ey, 24, 0, Math.PI * 2); g.stroke(); });
+    else if (m === 'think') { ex.forEach(x => { rrPath(g, x - 15 + 10, ey - 34, 30, 40, 13); g.fill(); }); [0, 1, 2].forEach(k => { g.globalAlpha = .35 + .65 * ((Math.floor(t * 3) % 3) === k ? 1 : 0); g.beginPath(); g.arc(W / 2 + 70 + k * 18, 150, 6, 0, Math.PI * 2); g.fill(); }); g.globalAlpha = 1; }
+    else ex.forEach(x => { rrPath(g, x - 18, ey - 30, 36, 60, 17); g.fill(); });
+    if (m !== 'think') {
+      if (st.talking) { const w = 26 + st.mouth * 34, h = 6 + st.mouth * 14; rrPath(g, W / 2 - w / 2, 152 - h / 2, w, h, h / 2); g.fill(); }
+      else if (m === 'sad') { g.lineWidth = 7; g.beginPath(); g.arc(W / 2, 170, 22, Math.PI * 1.2, Math.PI * 1.8); g.stroke(); }
+      else { g.lineWidth = 7; g.beginPath(); g.arc(W / 2, 128, 26, Math.PI * .22, Math.PI * .78); g.stroke(); }
+    }
+    g.restore(); faceT.needsUpdate = true;
+  }
+  draw(0);
+  const yawTo = v => { const p = new THREE.Vector3(); head.getWorldPosition(p); return { yaw: clamp(Math.atan2(v.x - p.x, v.z - p.z), -.95, .95), pitch: clamp(-Math.atan2(p.y - v.y, Math.hypot(v.x - p.x, v.z - p.z)) * .7, -.55, .15) }; };
+  return {
+    root,
+    get talking() { return st.talking; }, set talking(v) { st.talking = v; },
+    mood(m, ms = 0) { st.mood = m; draw(performance.now() / 1000); clearTimeout(st.moodT); if (ms) st.moodT = setTimeout(() => { st.mood = 'idle'; draw(performance.now() / 1000); }, ms); },
+    look(v) { st.look.copy(v); },
+    chin() { const p = new THREE.Vector3(0, -.62, .7); head.localToWorld(p); return p; },
+    async deal(target) {
+      if (reduceMotion || SNAP) return;
+      const gen = ++st.gen, h = hands[1], local = v => body.worldToLocal(v.clone());
+      const from = SHOE_MOUTH.clone().add(new THREE.Vector3(.15, .25, .1)), mid = from.clone().lerp(target, .4); mid.y += .7;
+      await tween(h, { p: local(from) }, 150, { ease: easeOut }); if (gen !== st.gen) return;
+      await tween(h, { p: local(mid) }, 220, { ease: easeInOut }); if (gen !== st.gen) return;
+      tween(h, { p: h.userData.rest.clone() }, 360, { ease: easeInOut });
+    },
+    update(t, dt) {
+      body.position.y = Math.sin(t * 1.5) * .07;
+      body.rotation.z = Math.sin(t * .7) * .02;
+      const a = yawTo(st.look); head.rotation.y = lerp(head.rotation.y, a.yaw, Math.min(1, dt * 4)); head.rotation.x = lerp(head.rotation.x, a.pitch, Math.min(1, dt * 4));
+      hands.forEach((h, i) => { if (!tweening(h)) h.position.y = h.userData.rest.y + Math.sin(t * 1.9 + i) * .06; });
+      glow.emissiveIntensity = 1.1 + Math.sin(t * 3) * .35;
+      let redraw = false;
+      if (t > st.blinkAt) { st.blink = .14; st.blinkAt = t + 2.2 + Math.random() * 3; redraw = true; }
+      if (st.blink > 0) { st.blink -= dt; if (st.blink <= 0) redraw = true; }
+      if (st.talking) { st.mouth = .5 + .5 * Math.sin(t * 22) * Math.sin(t * 7.3); redraw = redraw || t - st.lastDraw > .07; }
+      else if (st.mouth) { st.mouth = 0; redraw = true; }
+      if (st.mood === 'think') redraw = redraw || t - st.lastDraw > .2;
+      if (redraw) { st.lastDraw = t; draw(t); }
+    },
+  };
+})();
+
+/* ---------- tweens ---------- */
+const easeOut = t => 1 - Math.pow(1 - t, 3), easeInOut = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeBack = t => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const tweens = new Set();
+const tweening = obj => [...tweens].some(tw => tw.obj === obj);
+function applyEnd(o, to) { if (to.p) o.position.copy(to.p); if (to.r) o.rotation.set(to.r.x, to.r.y, to.r.z); if (to.s) o.scale.copy(to.s); }
+function tween(obj, to, dur, { ease = easeInOut, arc = 0, delay = 0 } = {}) {
+  return new Promise(res => {
+    for (const tw of tweens) if (tw.obj === obj) { tweens.delete(tw); tw.res(); }
+    if (SNAP) { applyEnd(obj, to); res(); return; }
+    tweens.add({ obj, to, dur: reduceMotion ? Math.min(dur, 90) : dur, t0: performance.now() + delay, ease, arc, res, from: null });
+  });
+}
+function stepTweens(now) {
+  for (const tw of tweens) {
+    if (now < tw.t0) continue;
+    const o = tw.obj;
+    if (!tw.from) tw.from = { p: o.position.clone(), r: new THREE.Vector3(o.rotation.x, o.rotation.y, o.rotation.z), s: o.scale.clone() };
+    const t = clamp((now - tw.t0) / tw.dur, 0, 1), e = tw.ease(t), f = tw.from, to = tw.to;
+    if (to.p) { o.position.lerpVectors(f.p, to.p, e); if (tw.arc) o.position.y += Math.sin(Math.PI * t) * tw.arc; }
+    if (to.r) o.rotation.set(lerp(f.r.x, to.r.x, e), lerp(f.r.y, to.r.y, e), lerp(f.r.z, to.r.z, e));
+    if (to.s) o.scale.lerpVectors(f.s, to.s, e);
+    if (t >= 1) { tweens.delete(tw); tw.res(); }
+  }
+}
+function finishTweens() { for (const tw of [...tweens]) { tweens.delete(tw); applyEnd(tw.obj, tw.to); tw.res(); } }
+
+/* ================= blackjack helpers ================= */
+const val = c => (c[0] === 'A' ? 11 : 'TJQK'.includes(c[0]) ? 10 : +c[0]);
+function total(cards) { let t = 0, a = 0; for (const c of cards) { if (!c) continue; t += val(c); if (c[0] === 'A') a++; } while (t > 21 && a) { t -= 10; a--; } return { t, soft: a > 0 }; }
+// basic strategy for 6 decks, dealer stands on soft 17, double after split allowed, no surrender
+function advise(cards, up, canDouble, canSplit) {
+  const d = val(up) === 11 ? 1 : val(up), { t, soft } = total(cards);
+  const dbl = (cond, alt) => (cond ? (canDouble ? 'double' : alt) : null);
+  if (canSplit && cards.length === 2 && val(cards[0]) === val(cards[1])) {
+    const p = val(cards[0]);
+    if (p === 11 || p === 8) return 'split';
+    if (p === 9 && [2, 3, 4, 5, 6, 8, 9].includes(d)) return 'split';
+    if ((p === 7 || p === 2 || p === 3) && d >= 2 && d <= 7) return 'split';
+    if (p === 6 && d >= 2 && d <= 6) return 'split';
+    if (p === 4 && (d === 5 || d === 6)) return 'split';
+  }
+  if (soft && t <= 21 && cards.length >= 2) {
+    if (t >= 19) return 'stand';
+    if (t === 18) return (d >= 3 && d <= 6 ? dbl(true, 'stand') : null) || (d === 2 || d === 7 || d === 8 ? 'stand' : 'hit');
+    if (t === 17) return (d >= 3 && d <= 6 ? dbl(true, 'hit') : null) || 'hit';
+    if (t >= 15) return (d >= 4 && d <= 6 ? dbl(true, 'hit') : null) || 'hit';
+    return (d === 5 || d === 6 ? dbl(true, 'hit') : null) || 'hit';
+  }
+  if (t >= 17) return 'stand';
+  if (t >= 13) return d >= 2 && d <= 6 ? 'stand' : 'hit';
+  if (t === 12) return d >= 4 && d <= 6 ? 'stand' : 'hit';
+  if (t === 11) return dbl(d !== 1, 'hit') || 'hit';
+  if (t === 10) return dbl(d >= 2 && d <= 9, 'hit') || 'hit';
+  if (t === 9) return dbl(d >= 3 && d <= 6, 'hit') || 'hit';
+  return 'hit';
+}
+const ACT_KO = { hit: '히트가', stand: '스탠드가', double: '더블이', split: '스플릿이' }; // with the right particle
+const IN_ROUND = ['deal', 'play', 'dealer'];
+
+/* ================= connection ================= */
+let V = null, recvAt = 0, connected = false, myToken = lsGet('token'), resuming = !!myToken, kicked = null;
+const sock = window.io({ query: { game: 'bj' }, reconnectionDelay: 800, reconnectionDelayMax: 5000 });
+function call(ev, msg) {
+  return new Promise(res => {
+    if (!sock.connected) return res({ ok: false, msg: '서버에 연결되지 않았어요.' });
+    sock.timeout(8000).emit(ev, msg || {}, (err, r) => res(err ? { ok: false, msg: '응답이 없어요. 다시 시도해 주세요.' } : (r || { ok: false })));
+  });
+}
+async function resume() {
+  const token = lsGet('token'); if (!token) { resuming = false; renderUI(); return; }
+  resuming = true; renderUI();
+  const r = await call('resume', { token });
+  resuming = false;
+  if (r.ok) { myToken = token; kicked = null; } else if (r.msg == null && lsGet('token') === token) lsSet('token', null);
+  renderUI();
+}
+sock.on('connect', () => { connected = true; renderUI(); if (!kicked) resume(); });
+sock.on('disconnect', () => { connected = false; renderUI(); });
+sock.on('connect_error', () => { connected = false; renderUI(); });
+sock.on('kicked', m => {
+  // another tab of this browser resumed with the same token: keep it; a fresh login elsewhere replaced it: drop ours
+  if (!(m && m.keepToken) && lsGet('token') === myToken) lsSet('token', null);
+  kicked = m && m.keepToken ? 'tab' : 'device'; renderUI();
+});
+sock.on('bj:state', onState);
+
+/* ================= what the table shows ================= */
+// D mirrors what is on the felt; the sync loop walks it towards the latest server view with animations
+const D = { round: -1, paid: -1, seats: Array.from({ length: 5 }, () => ({ bet: 0, betStack: null, hands: [] })), dealer: { cards: [], objs: [] } };
+const newHand = (bet, stack) => ({ cards: [], objs: [], bet, doubled: false, stack, win: null, result: null, net: null, taken: false });
+const tableHasCards = () => D.dealer.objs.length > 0 || D.seats.some(x => x.hands.length > 0);
+const mySeat = () => (V && V.me && V.me.seat != null ? V.me.seat : null);
+const handSide = (nh, hi) => (nh > 1 ? (hi === 0 ? .74 : -.74) : 0);
+function handSlot(s, hi, j, n) {
+  const nh = D.seats[s].hands.length, fan = nh > 1 ? .27 : .36, side = handSide(nh, hi) + (j - (n - 1) / 2) * fan;
+  const p = at(s, RC - j * .09, side, .02 + j * .005);
+  return { p, yaw: YAW[s] + (j - (n - 1) / 2) * -.035 };
+}
+function dealerSlot(j, n) { return { p: new THREE.Vector3((j - (n - 1) / 2) * .68, .02 + j * .004, DEALER_Z), yaw: 0 }; }
+const stackSpot = (s, hi, nh) => at(s, RB, handSide(nh, hi));
+const winSpot = (s, hi, nh) => at(s, RB + .8, handSide(nh, hi));
+const tagSpot = s => at(s, RB + .12, -1.5);
+function placeStack(st, s, spot) { st.position.copy(spot); st.rotation.y = YAW[s]; scene.add(st); return st; }
+async function dropTop(st) {
+  const top = st.children[st.children.length - 1]; if (!top || SNAP) return;
+  const y = top.position.y; top.position.y += 1.1;
+  await tween(top, { p: new THREE.Vector3(top.position.x, y, top.position.z) }, 300, { ease: easeBack });
+}
+function handOf(s, hi) { return s === 'd' ? D.dealer : D.seats[s].hands[hi]; }
+function relayout(s, hi, skip) {
+  const H = handOf(s, hi); if (!H) return Promise.resolve();
+  const n = H.objs.length, jobs = [];
+  H.objs.forEach((o, j) => {
+    if (o === skip) return;
+    const sl = s === 'd' ? dealerSlot(j, n) : handSlot(s, hi, j, n), side = s !== 'd' && H.doubled && j === 2 ? Math.PI / 2 : 0;
+    jobs.push(tween(o, { p: sl.p, r: new THREE.Vector3(0, sl.yaw + side, o.rotation.z) }, 300, { ease: easeOut }));
+  });
+  return Promise.all(jobs);
+}
+function dealCard(s, hi, card) {
+  const H = handOf(s, hi);
+  const o = makeCard(card); o.position.copy(SHOE_MOUTH); o.rotation.set(-.32, SHOE_YAW, Math.PI); scene.add(o);
+  H.cards.push(card); H.objs.push(o);
+  const n = H.objs.length, sl = s === 'd' ? dealerSlot(n - 1, n) : handSlot(s, hi, n - 1, n);
+  const sideways = s !== 'd' && H.doubled && n === 3;
+  o.userData.flying = true;
+  robot.look(sl.p); robot.deal(sl.p); SND.play('card');
+  relayout(s, hi, o);
+  return tween(o, { p: sl.p, r: new THREE.Vector3(0, sl.yaw + (sideways ? Math.PI / 2 : 0), card ? 0 : Math.PI) }, 470, { ease: easeOut, arc: .55, delay: reduceMotion ? 0 : 60 })
+    .then(() => { o.userData.flying = false; if (card) SND.play('flip'); });
+}
+async function revealHole(card) {
+  const o = D.dealer.objs[1]; if (!o) return;
+  o.children[1].material = faceMat(card); o.userData.card = card; D.dealer.cards[1] = card;
+  robot.look(o.position);
+  await tween(o, { p: o.position.clone(), r: new THREE.Vector3(0, o.rotation.y, 0) }, 380, { ease: easeInOut, arc: .3 }); SND.play('flip');
+}
+async function toRack(st) {
+  if (!st) return;
+  SND.play('chips');
+  await tween(st, { p: RACK_POS.clone().add(new THREE.Vector3((Math.random() - .5) * 2, .3, 0)), s: new THREE.Vector3(.6, .6, .6) }, 650, { ease: easeInOut, arc: .6 });
+  scene.remove(st);
+}
+async function takeBust(s, hi) {
+  const h = D.seats[s].hands[hi]; if (!h || h.taken) return;
+  h.taken = true; const st = h.stack; h.stack = null;
+  await wait(250); await toRack(st);
+}
+async function doSplit(s, vh) {
+  const seat = D.seats[s], h0 = seat.hands[0];
+  const h1 = newHand(vh[1].bet, null);
+  if (h0.cards.length >= 2) { h1.cards.push(h0.cards.pop()); h1.objs.push(h0.objs.pop()); }
+  seat.hands.push(h1);
+  h1.stack = placeStack(makeStack(h1.bet), s, stackSpot(s, 0, 1)); SND.play('chips');
+  const jobs = [relayout(s, 0), relayout(s, 1)];
+  seat.hands.forEach((h, i) => { if (h.stack) jobs.push(tween(h.stack, { p: stackSpot(s, i, 2) }, 320, { ease: easeOut })); });
+  await Promise.all(jobs);
+}
+async function growStack(s, hi) {
+  const h = D.seats[s].hands[hi], old = h.stack, nh = D.seats[s].hands.length;
+  const st = placeStack(makeStack(h.bet), s, old ? old.position.clone() : stackSpot(s, hi, nh));
+  if (old) scene.remove(old); h.stack = st; SND.play('chips');
+  await dropTop(st);
+}
+async function payWin(s, hi, amount) {
+  const h = D.seats[s].hands[hi]; if (!amount) return;
+  const w = makeStack(amount); w.position.copy(RACK_POS).add(new THREE.Vector3(0, .3, 0)); w.rotation.y = YAW[s]; scene.add(w); SND.play('chips');
+  h.win = w;
+  await tween(w, { p: winSpot(s, hi, D.seats[s].hands.length) }, 620, { ease: easeOut, arc: .8 });
+}
+async function collect() {
+  const jobs = [];
+  D.seats.forEach((seat, s) => {
+    seat.hands.forEach(h => [h.stack, h.win].forEach(st => { if (!st) return; jobs.push(tween(st, { p: at(s, R + 2.4, 0, -.6) }, 560, { ease: easeInOut }).then(() => scene.remove(st))); }));
+  });
+  if (jobs.length) SND.play('chips');
+  const cards = [...D.seats.flatMap(x => x.hands.flatMap(h => h.objs)), ...D.dealer.objs];
+  cards.forEach((o, i) => jobs.push(tween(o, { p: DISCARD_POS.clone().add(new THREE.Vector3(0, .35 + i * .008, 0)), r: new THREE.Vector3(0, -.3, Math.PI) }, 520, { ease: easeInOut, arc: .5, delay: Math.min(i, 24) * 32 }).then(() => scene.remove(o))));
+  await Promise.all(jobs);
+  setDiscard(discardCount + cards.length);
+  D.seats.forEach(x => (x.hands = [])); D.dealer = { cards: [], objs: [] };
+}
+function syncBets(v) {
+  for (let s = 0; s < 5; s++) {
+    const want = (v.seats[s] && v.seats[s].bet) || 0, seat = D.seats[s];
+    if (seat.bet === want) continue;
+    const grew = want > seat.bet;
+    if (seat.betStack) { scene.remove(seat.betStack); seat.betStack = null; }
+    seat.bet = want;
+    if (want) { seat.betStack = placeStack(makeStack(want), s, stackSpot(s, 0, 1)); if (grew) dropTop(seat.betStack); }
+    SND.play('chip');
+  }
+}
+async function shuffleAnim() {
+  SND.play('shuffle'); robot.mood('think', 1400);
+  setDiscard(0); setShoe(1);
+  await wait(1300);
+}
+async function settleAnim(v) {
+  const jobs = [];
+  for (let s = 0; s < 5; s++) {
+    const vs = v.seats[s], hs = vs && vs.hands; if (!hs) continue;
+    hs.forEach((h, i) => {
+      const dh = D.seats[s].hands[i]; if (!dh) return;
+      dh.result = h.result; dh.net = h.net;
+      if ((h.result === 'lose' || h.result === 'bust') && dh.stack && !dh.taken) { const st = dh.stack; dh.stack = null; dh.taken = true; jobs.push(wait(200).then(() => toRack(st))); }
+      else if (h.result === 'win' || h.result === 'bj') jobs.push(wait(200).then(() => payWin(s, i, h.net)));
+    });
+  }
+  const me = mySeat(), mine = me != null && v.seats[me] && v.seats[me].hands;
+  if (mine) { const n = v.seats[me].net; SND.play(n > 0 ? (mine.some(h => h.result === 'bj') ? 'bj' : 'win') : n < 0 ? 'lose' : 'blip'); }
+  await Promise.all(jobs);
+}
+async function syncTo(v) {
+  const vh = s => (v.seats[s] && v.seats[s].hands) || null;
+  setShoe(v.shoe ? v.shoe.left : 1);
+  // 1) the last round leaves the felt
+  if (tableHasCards() && (v.round !== D.round || !v.dealer.cards.length)) await collect();
+  // 2) between rounds the bet circles follow the betting
+  if (!v.dealer.cards.length) { syncBets(v); return; }
+  // 3) a new round: the chips in each circle become that seat's hand
+  if (!tableHasCards()) {
+    D.round = v.round; D.paid = -1;
+    for (let s = 0; s < 5; s++) {
+      const hs = vh(s), seat = D.seats[s];
+      let st = seat.betStack; seat.betStack = null; seat.bet = 0;
+      if (!hs) { if (st) scene.remove(st); continue; }
+      if (!st || st.userData.amount !== hs[0].bet) { if (st) scene.remove(st); st = placeStack(makeStack(hs[0].bet), s, stackSpot(s, 0, 1)); }
+      seat.hands = [newHand(hs[0].bet, st)];
+    }
+    D.dealer = { cards: [], objs: [] };
+    if (v.shoe && v.shoe.shuffled) await shuffleAnim();
+  }
+  // 4) splits and doubles
+  for (let s = 0; s < 5; s++) {
+    const hs = vh(s), seat = D.seats[s]; if (!hs || !seat.hands.length) continue;
+    if (hs.length > seat.hands.length) await doSplit(s, hs);
+    for (let i = 0; i < seat.hands.length; i++) {
+      const dh = seat.hands[i], h = hs[i];
+      if (h && h.bet > dh.bet) { dh.bet = h.bet; dh.doubled = h.doubled; await growStack(s, i); }
+    }
+  }
+  // 5) the opening deal goes round the table twice, one card at a time
+  const jobs = [];
+  for (let i = 0; i < 2 && D.dealer.cards.length < 2; i++) {
+    for (let s = 0; s < 5; s++) {
+      const hs = vh(s), seat = D.seats[s];
+      if (hs && seat.hands.length === 1 && seat.hands[0].cards.length === i && hs[0].cards.length > i) { jobs.push(dealCard(s, 0, hs[0].cards[i])); await wait(300); }
+    }
+    if (D.dealer.cards.length === i && v.dealer.cards.length > i) { jobs.push(dealCard('d', 0, v.dealer.cards[i])); await wait(300); }
+  }
+  await Promise.all(jobs);
+  // 6) everything drawn since: hits, doubles, split cards
+  for (let s = 0; s < 5; s++) {
+    const hs = vh(s); if (!hs) continue;
+    for (let i = 0; i < hs.length; i++) {
+      const dh = D.seats[s].hands[i]; if (!dh) continue;
+      while (dh.cards.length < hs[i].cards.length) {
+        await dealCard(s, i, hs[i].cards[dh.cards.length]);
+        if (total(dh.cards).t > 21) await takeBust(s, i);
+      }
+      dh.auto = hs[i].auto;
+    }
+  }
+  // 7) the dealer turns the hole card and draws
+  if (D.dealer.cards.length > 1 && D.dealer.cards[1] === null && v.dealer.cards[1]) await revealHole(v.dealer.cards[1]);
+  while (D.dealer.cards.length < v.dealer.cards.length) { robot.mood('think', 600); await dealCard('d', 0, v.dealer.cards[D.dealer.cards.length]); }
+  // 8) pay out
+  if (v.phase === 'over' && D.paid !== v.round) { D.paid = v.round; await settleAnim(v); }
+}
+let want = null, cur = null, shown = null, syncing = false, sceneReady = false, firstSync = true;
+async function runSync() {
+  if (syncing || !sceneReady) return;
+  syncing = true;
+  try {
+    while (want && want !== shown) {
+      const v = want; cur = v;
+      SNAP = firstSync || document.visibilityState !== 'visible';
+      sayLines(v, 'pre');
+      try { await syncTo(v); } catch (e) { console.error('[bj] sync', e); }
+      shown = v; firstSync = false;
+      sayLines(v, 'post');
+      focusRobot();
+    }
+  } finally { syncing = false; cur = null; SNAP = false; }
+}
+let greeted = false;
+function greet() {
+  if (greeted || !sceneReady || resuming || !V) return;
+  greeted = true;
+  if (!$('bubble').classList.contains('hide')) return;
+  const me = V.me;
+  say(!me ? '어서 오세요! 저는 AI 딜러예요. 홀덤 계정으로 들어와 주세요.' : me.seat != null ? `${me.name}님, 다시 오셨네요. 계속 해볼까요?` : `${me.name}님, 어서 오세요! 빈 자리에 앉아 주세요.`, 'happy', { ms: 4200 });
+}
+function onState(v) {
+  if (resuming && !v.me && V && V.me) return; // keep the last view while the session resumes
+  V = v; recvAt = performance.now();
+  v._lines = readLog(v);
+  if (want && want !== shown && want !== cur) v._lines = want._lines.concat(v._lines); // that state was skipped: keep its lines
+  want = v;
+  renderUI();
+  runSync();
+  if (!greeted && (v.me || !resuming)) setTimeout(greet, 600);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') { finishTweens(); try { speechSynthesis.cancel(); } catch {} } });
+
+/* ---------- the dealer talks ---------- */
+let lastLogId = null, bubbleT;
+const PRE = new Set(['deal', 'shuffle', 'join', 'abort']);
+function readLog(v) {
+  const log = v.log || [], out = [];
+  const newest = log.length ? log[log.length - 1].id : 0;
+  if (lastLogId == null || newest < lastLogId) { lastLogId = newest; return out; } // first view (or a server restart): no replays
+  for (const l of log) {
+    if (l.id <= lastLogId) continue;
+    const mine = l.seat != null && v.me && v.me.seat === l.seat;
+    let L = { text: l.text, voice: false, mood: null, when: PRE.has(l.kind) ? 'pre' : 'post' };
+    if (l.kind === 'join') { L.mood = 'happy'; L.voice = mine; }
+    else if (l.kind === 'shuffle') { L.mood = 'think'; L.voice = true; }
+    else if (l.kind === 'peek') { L.mood = 'think'; L.voice = /에이스/.test(l.text); }
+    else if (l.kind === 'nobj') L.mood = 'idle';
+    else if (l.kind === 'dealerBJ') { L.mood = 'happy'; L.voice = true; }
+    else if (l.kind === 'turn') { L.voice = mine; if (mine) L.turn = true; }
+    else if (l.kind === 'bust') { L.mood = 'sad'; L.voice = mine; }
+    else if (l.kind === 'dealerBust') { L.mood = 'wow'; L.voice = true; }
+    else if (l.kind === 'abort') { L.mood = 'sad'; L.voice = true; }
+    else if (l.kind === 'summary') {
+      const me = v.me && v.me.seat != null ? v.seats[v.me.seat] : null;
+      if (me && me.hands && me.net != null) {
+        const n = me.net, bj = me.hands.some(h => h.result === 'bj');
+        L = { when: 'post', voice: true, mood: 'happy',
+          text: n > 0 ? (bj ? `블랙잭! 축하해요, ${fmt(n)}칩 이기셨어요.` : `축하해요! ${fmt(n)}칩 이기셨어요.`)
+            : n < 0 ? (me.hands.every(h => h.result === 'bust') ? '버스트는 아프죠. 다음 판에 다시 가봐요.' : '이번 판은 제가 가져갈게요. 다음엔 행운을 빌어요.')
+            : '비겼어요. 칩은 그대로예요.' };
+      }
+    }
+    out.push(L);
+  }
+  lastLogId = newest;
+  return out;
+}
+function sayLines(v, when) {
+  const ls = (v._lines || []).filter(l => l.when === when); if (!ls.length) return;
+  const pick = [...ls].reverse().find(l => l.voice) || ls[ls.length - 1];
+  say(pick.text, pick.mood, { voice: pick.voice });
+  if (ls.some(l => l.turn)) SND.play('turn');
+}
+function say(text, mood, { voice = false, ms } = {}) {
+  $('bubbleText').textContent = text; $('bubble').classList.remove('hide');
+  if (mood) robot.mood(mood, mood === 'think' ? 1600 : 2600);
+  if (voice) VOICE.say(text);
+  clearTimeout(bubbleT); bubbleT = setTimeout(() => $('bubble').classList.add('hide'), ms || Math.max(2400, text.length * 140));
+}
+function focusRobot() {
+  const t = V && V.turn;
+  if (t && D.seats[t.seat] && D.seats[t.seat].hands[t.hand]) robot.look(at(t.seat, RC, handSide(D.seats[t.seat].hands.length, t.hand)));
+  else robot.look(camera.position.clone().setY(2));
+}
+
+/* ---------- glow under the hand being played, ring on my circle ---------- */
+const glowGrp = new THREE.Group(); scene.add(glowGrp);
+const glowMesh = (() => {
+  const c = mkCanvas(128, 128), g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(98,227,242,.55)'); gr.addColorStop(.55, 'rgba(98,227,242,.18)'); gr.addColorStop(1, 'rgba(98,227,242,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: texOf(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = .006; glowGrp.add(m); glowGrp.visible = false; return m;
+})();
+const myRing = new THREE.Mesh(new THREE.RingGeometry(.7, .78, 64), new THREE.MeshBasicMaterial({ color: 0xf8d68e, transparent: true, opacity: .8, depthWrite: false, toneMapped: false }));
+myRing.rotation.x = -Math.PI / 2; myRing.position.y = .008; myRing.visible = false; scene.add(myRing);
+function placeGlow(t) {
+  const tr = V && V.turn, seat = tr && D.seats[tr.seat], h = seat && seat.hands[tr.hand];
+  glowGrp.visible = !!h && V.phase === 'play';
+  if (glowGrp.visible) {
+    const p = at(tr.seat, RC - .1, handSide(seat.hands.length, tr.hand)), w = 1.7 + .32 * Math.max(0, h.objs.length - 1);
+    glowGrp.position.lerp(p, glowGrp.position.lengthSq() ? .2 : 1); glowGrp.rotation.y = YAW[tr.seat];
+    glowMesh.scale.set(w * 1.3, 2.7, 1); glowMesh.material.opacity = .75 + Math.sin(t * 3.2) * .25;
+  }
+  const me = mySeat();
+  myRing.visible = me != null;
+  if (me != null) {
+    myRing.position.set(at(me, RB).x, .008, at(me, RB).z);
+    const wantBet = V && ['idle', 'betting', 'over'].includes(V.phase) && !(V.seats[me] && V.seats[me].bet);
+    myRing.material.opacity = wantBet ? .55 + Math.sin(t * 4) * .35 : .45;
+  }
+}
+
+/* ---------- labels over the scene ---------- */
+const tagsEl = $('tags'), tagMap = new Map();
+function tagEl(key, cls = 'tag', tag = 'div', init) { let el = tagMap.get(key); if (!el) { el = document.createElement(tag); el.className = cls; if (init) init(el); tagsEl.appendChild(el); tagMap.set(key, el); } el._seen = true; return el; }
+const toScreen = v => { const p = v.clone().project(camera); return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight, ok: p.z < 1 }; };
+function putAt(el, v, dy = 0) { const s = toScreen(v); el.style.transform = `translate(${s.x}px,${s.y + dy}px) translate(-50%,-50%)`; el.style.visibility = s.ok ? '' : 'hidden'; }
+function setHTML(el, html) { if (el._h !== html) { el.innerHTML = html; el._h = html; } }
+function setCls(el, cls) { if (el.className !== cls) el.className = cls; }
+function handLabel(h, dealer, split = false) {
+  const cards = h.cards.filter((c, i) => !(h.objs[i] && h.objs[i].userData.flying)); if (!cards.length) return null;
+  if (!dealer && h.result) {
+    const n = h.net;
+    if (h.result === 'bj') return { cls: 'bj', text: `블랙잭 +${fmt(n)}` };
+    if (h.result === 'win') return { cls: 'win', text: `+${fmt(n)}` };
+    if (h.result === 'push') return { cls: 'push', text: '푸시' };
+    if (h.result === 'bust') return { cls: 'bust', text: `버스트 −${fmt(-n)}` };
+    return { cls: 'lose', text: `−${fmt(-n)}` };
+  }
+  const { t, soft } = total(cards), hidden = dealer && cards.includes(null);
+  if (!dealer && !split && cards.length === 2 && t === 21) return { cls: 'bj', text: '블랙잭' };
+  if (dealer && !hidden && cards.length === 2 && t === 21) return { cls: 'bj', text: '딜러 블랙잭' };
+  if (t > 21) return { cls: 'bust', text: `${t} 버스트` };
+  return { cls: '', text: soft && t < 21 ? `${t - 10}/${t}` : String(t) };
+}
+function placeTags(now) {
+  tagMap.forEach(el => (el._seen = false));
+  const v = V, me = mySeat(), canSit = v && v.me && me == null && !kicked;
+  const elapsed = performance.now() - recvAt;
+  for (let s = 0; s < 5; s++) {
+    const st = v && v.seats[s], dseat = D.seats[s];
+    // seat name tag
+    if (st && st.name) {
+      const el = tagEl('s' + s, 'stag'), turn = v.turn && v.turn.seat === s;
+      let status = '';
+      if (st.vacated) status = '';
+      else if (st.leaving) status = '<em>곧 일어나요</em>';
+      else if (!st.online) status = '<em>연결 끊김</em>';
+      else if (['idle', 'betting', 'over'].includes(v.phase) && st.bet > 0) status = st.ready ? '<em class="ok">준비 완료</em>' : `<em>베팅 ${fmt(st.bet)}</em>`;
+      else if (turn) status = '<em>차례</em>';
+      setCls(el, 'stag' + (st.me ? ' me' : '') + (turn ? ' turn' : '') + (!st.online || st.leaving ? ' off' : ''));
+      setHTML(el, `<b>${esc(st.name)}${st.me ? ' (나)' : ''}</b><span>${fmt(st.chips)}</span>${status}${turn ? '<i class="tb"><i></i></i>' : ''}`);
+      if (turn) { const bar = el.querySelector('.tb i'); if (bar) bar.style.transform = `scaleX(${clamp((v.turn.left - elapsed) / v.turn.total, 0, 1)})`; }
+      putAt(el, tagSpot(s));
+    } else if (canSit && st == null) {
+      const el = tagEl('sit' + s, 'sit', 'button', b => { b.dataset.sit = s; b.type = 'button'; b.setAttribute('aria-label', `${s + 1}번 자리에 앉기`); });
+      setHTML(el, '앉기'); putAt(el, at(s, RB));
+    }
+    // hand labels
+    dseat.hands.forEach((h, i) => {
+      const lab = handLabel(h, false, dseat.hands.length > 1); if (!lab) return;
+      const el = tagEl(`h${s}-${i}`), active = v && v.turn && v.turn.seat === s && v.turn.hand === i;
+      setCls(el, 'tag' + (s === me ? '' : ' sm') + (lab.cls ? ' ' + lab.cls : '') + (active ? ' active' : ''));
+      setHTML(el, lab.text);
+      putAt(el, at(s, RC - 1.12 - Math.max(0, h.objs.length - 2) * .09, handSide(dseat.hands.length, i)));
+    });
+  }
+  const dl = D.dealer.objs.length ? handLabel(D.dealer, true) : null;
+  if (dl) { const el = tagEl('d'); setCls(el, 'tag' + (dl.cls ? ' ' + dl.cls : '')); setHTML(el, dl.text); putAt(el, new THREE.Vector3(0, 0, DEALER_Z - 1.05)); }
+  tagMap.forEach((el, k) => { if (!el._seen) { el.remove(); tagMap.delete(k); } });
+  const b = $('bubble');
+  if (!b.classList.contains('hide')) {
+    const s = toScreen(robot.chin()), x = clamp(s.x, b.offsetWidth / 2 + 12, innerWidth - b.offsetWidth / 2 - 12);
+    b.style.transform = `translate(${x - b.offsetWidth / 2}px,${s.y + 12}px)`; b.style.setProperty('--tail', clamp(s.x - x + b.offsetWidth / 2, 18, b.offsetWidth - 18) + 'px');
+  }
+}
+tagsEl.addEventListener('click', e => { const b = e.target.closest('[data-sit]'); if (b) sit(+b.dataset.sit); });
+
+/* ================= actions ================= */
+async function act(type) {
+  if (!V || !V.opts || !V.turn) return;
+  const r = await call('bj:act', { type, round: V.round });
+  if (!r.ok && r.msg) toast(r.msg);
+}
+async function sit(seat, leaveHoldem = false) {
+  const r = await call('bj:sit', { seat, leaveHoldem });
+  if (r.ok) { SND.play('blip'); return; }
+  if (r.code === 'holdemHand') { if (await ask(r.msg, '폴드하고 앉기')) return sit(seat, true); return; }
+  if (r.msg) toast(r.msg);
+}
+async function bet(amount) { const r = await call('bj:bet', { amount }); if (r.ok) SND.play('chip'); else if (r.msg) toast(r.msg); }
+async function simple(ev, msg) { const r = await call(ev, msg); if (!r.ok && r.msg) toast(r.msg); return r; }
+function hint() {
+  const v = V; if (!v || !v.opts || !v.turn) return;
+  const h = v.seats[v.turn.seat].hands[v.turn.hand], up = v.dealer.cards[0];
+  const a = advise(h.cards, up, v.opts.double, v.opts.split);
+  ui.rec = `${v.round}:${v.turn.hand}:${h.cards.length}:${a}`; renderUI();
+  const { t, soft } = total(h.cards), upName = up[0] === 'A' ? '에이스' : String(val(up));
+  say(`제 계산으로는 ${ACT_KO[a]} 유리해요. (내 ${soft && t < 21 ? '소프트 ' : ''}${t} · 딜러 ${upName})`, 'think', { ms: 3400 });
+}
+async function goHoldem() {
+  const v = V, me = v && v.me;
+  if (me && me.seat != null && !me.leaving) {
+    if (me.committed > 0 && IN_ROUND.includes(v.phase) && !(await ask('진행 중인 판은 남은 핸드를 자동으로 스탠드해서 끝까지 정산돼요. 홀덤으로 갈까요?', '홀덤으로 가기'))) return;
+    await call('bj:leave');
+  }
+  location.href = '/';
+}
+let askRes = null;
+function ask(text, yes = '확인') {
+  $('askText').textContent = text; $('askYes').textContent = yes; $('askSheet').hidden = false;
+  return new Promise(res => { askRes = res; });
+}
+function closeAsk(v) { $('askSheet').hidden = true; if (askRes) { const r = askRes; askRes = null; r(v); } }
+$('askYes').addEventListener('click', () => closeAsk(true));
+$('askNo').addEventListener('click', () => closeAsk(false));
+
+/* ================= UI ================= */
+const ICON = {
+  soundOn: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  soundOff: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6"/><path d="M22 9l-5 6"/></svg>',
+  voice: '<svg viewBox="0 0 24 24"><path d="M4 12h2"/><path d="M8 8v8"/><path d="M12 5v14"/><path d="M16 8v8"/><path d="M20 11v2"/></svg>',
+  bulb: '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2zm-3 18h6v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/></svg>',
+};
+const ui = { rec: '', lastTurnKey: '' };
+let shownBank = null;
+const leftMs = kind => {
+  if (!V) return 0; const el = performance.now() - recvAt;
+  if (kind === 'turn') return V.turn ? Math.max(0, V.turn.left - el) : 0;
+  if (kind === 'bet') return Math.max(0, (V.betLeft || 0) - el);
+  return Math.max(0, (V.nextIn || 0) - el);
+};
+function dockHTML() {
+  const v = V;
+  if (kicked) return `<div class="wait"><div>${kicked === 'tab' ? '다른 탭에서 같은 계정으로 열었어요.' : '다른 기기에서 같은 닉네임으로 들어왔어요.'}<small>${kicked === 'tab' ? '이 화면은 잠시 멈췄어요.' : '이 화면은 로그아웃됐어요.'}</small></div></div>
+    <div class="row"><button class="ghost" type="button" data-do="holdem">홀덤으로</button><button class="gold" type="button" data-do="${kicked === 'tab' && lsGet('token') ? 'resume' : 'relogin'}">${kicked === 'tab' && lsGet('token') ? '여기서 계속하기' : '다시 들어가기'}</button></div>`;
+  if (!v) return `<div class="status center"><span>${connected ? '테이블 정보를 받는 중…' : '서버에 연결하는 중…'}</span></div>`;
+  if (!v.me) {
+    if (resuming) return '<div class="status center"><span>들어가는 중…</span></div>';
+    return `<form class="lform" id="loginForm" autocomplete="on">
+      <div class="lt"><b>홀덤과 같은 계정</b>으로 들어와요 · 칩도 그대로예요</div>
+      <input id="liName" maxlength="10" autocomplete="username" placeholder="닉네임" aria-label="닉네임" value="${esc(lsGet('name') || '')}"><input id="liPin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="PIN" aria-label="PIN 4자리">
+      <div class="row lbtns"><button class="ghost" type="button" data-do="holdem">홀덤으로</button><button class="gold" type="submit">입장하기</button></div>
+      <div class="lerr" id="liErr"></div>
+    </form>`;
+  }
+  const me = v.me, s = me.seat, recover = me.canRecover ? `<div class="recover"><div><b>칩이 다 떨어졌어요</b><span>홀덤과 같은 파산 복구예요</span></div><button class="gold" type="button" data-do="recover">${fmt(me.recoverAmt)} 받기</button></div>` : '';
+  if (s == null) {
+    const free = v.seats.filter(x => !x).length;
+    return `${recover}<div class="status center"><span>${free ? '빈 자리의 <b>앉기</b>를 누르면 게임에 참여해요' : '자리가 다 찼어요. 구경하면서 기다려 주세요'}</span></div>
+      <div class="row"><button class="ghost" type="button" data-do="holdem">홀덤으로</button><button class="gold" type="button" data-do="sitAny" ${free ? '' : 'disabled'}>빈 자리에 앉기</button></div>`;
+  }
+  const seat = v.seats[s] || {}, mine = seat.hands;
+  if (me.leaving) return `<div class="wait"><div>이번 판이 끝나면 자리에서 일어나요<small>남은 핸드는 자동으로 스탠드해요</small></div></div><div class="row"><button class="ghost" type="button" data-do="holdem">홀덤으로</button><button class="gold" type="button" data-do="stay">계속 앉아 있기</button></div>`;
+  if (v.phase === 'play' && v.opts && v.turn && v.turn.seat === s) {
+    const h = mine[v.turn.hand], up = v.dealer.cards[0], { t, soft } = total(h.cards);
+    const recA = ui.rec && ui.rec.startsWith(`${v.round}:${v.turn.hand}:${h.cards.length}:`) ? ui.rec.split(':')[3] : '';
+    return `<div class="status"><span>${mine.length > 1 ? `핸드 ${v.turn.hand + 1}/${mine.length} · ` : ''}베팅 <b>${fmt(h.bet)}</b> · 내 합 <b>${soft && t < 21 ? `${t - 10}/${t}` : t}</b> · 딜러 <b>${up[0] === 'A' ? 'A' : val(up)}</b></span><button class="hint" type="button" data-do="hint">${ICON.bulb}AI 힌트</button></div>
+      <div class="bar"><i data-bar="turn"></i></div>
+      <div class="acts">
+        <button class="act hit${recA === 'hit' ? ' rec' : ''}" type="button" data-act="hit">히트<small>H</small></button>
+        <button class="act stand${recA === 'stand' ? ' rec' : ''}" type="button" data-act="stand">스탠드<small>S</small></button>
+        <button class="act dbl${recA === 'double' ? ' rec' : ''}" type="button" data-act="double" ${v.opts.double ? '' : 'disabled'}>더블<small>D</small></button>
+        <button class="act${recA === 'split' ? ' rec' : ''}" type="button" data-act="split" ${v.opts.split ? '' : 'disabled'}>스플릿<small>P</small></button>
+      </div>`;
+  }
+  if (IN_ROUND.includes(v.phase)) {
+    let what;
+    if (v.phase === 'deal') what = v.peeking ? '딜러가 블랙잭인지 확인하는 중…' : '카드 나가는 중…';
+    else if (v.phase === 'dealer') what = '딜러 차례예요';
+    else { const ts = v.turn && v.seats[v.turn.seat]; what = ts ? `<span>${esc(ts.name)}님 차례 · <span class="t" data-left="turn"></span>초</span>` : '잠시만요…'; }
+    const myLine = mine ? `내 베팅 <b>${fmt(mine.reduce((a, h) => a + h.bet, 0))}</b>${mine.length > 1 ? ` · 핸드 ${mine.length}개` : ''}` : '이번 판은 구경 중 · 다음 판에 베팅할 수 있어요';
+    return `<div class="wait"><div>${what}<small>${myLine}</small></div></div>`;
+  }
+  // between rounds: idle / betting / showing the result
+  const out = [];
+  if (v.phase === 'over' && mine && seat.net != null) {
+    const n = seat.net, cls = n > 0 ? 'pos' : n < 0 ? 'neg' : 'even';
+    out.push(`<div class="result ${cls}">${n > 0 ? '+' + fmt(n) : n < 0 ? '−' + fmt(-n) : '±0'}<small>다음 판까지 <span data-left="next"></span>초 · 미리 베팅해 둘 수 있어요</small></div>`);
+  }
+  const b = seat.bet || 0, chips = me.chips, max = (v.cfg && v.cfg.max) || 5000;
+  if (!b && !chips) { out.push(recover || '<div class="status center"><span>칩이 없어요. 판이 끝나면 복구할 수 있어요.</span></div>'); out.push('<div class="row"><button class="ghost" type="button" data-do="leave">일어나기</button><button class="ghost" type="button" data-do="holdem">홀덤으로</button></div>'); return out.join(''); }
+  const others = v.seats.some((x, i) => x && i !== s && x.online && !x.leaving);
+  const chipRow = `<div class="chips">${[5, 25, 100, 500].map(d => `<button class="chip c${d}" type="button" data-chip="${d}" ${d > chips || b + d > max ? 'disabled' : ''} aria-label="${d}칩 걸기">${d}</button>`).join('')}</div>`;
+  let main;
+  if (b && seat.ready) main = `<button class="gold ready" type="button" data-do="unready">준비 완료 ✓<small>${fmt(b)}</small></button>`;
+  else if (b) main = `<button class="gold" type="button" data-do="ready">${others ? '준비' : '딜'}<small>${fmt(b)}</small></button>`;
+  else if (me.lastBet && me.lastBet <= chips) main = `<button class="gold" type="button" data-do="rebet">같은 베팅으로 ${others ? '준비' : '딜'}<small>${fmt(me.lastBet)}</small></button>`;
+  else main = '<button class="gold" type="button" disabled>칩을 골라 주세요</button>';
+  out.push(`<div class="betbox">${chipRow}<div class="row">${b ? '<button class="ghost" type="button" data-do="clear">지우기</button>' : '<button class="ghost" type="button" data-do="leave">일어나기</button>'}${main}</div></div>`);
+  if (v.phase !== 'over') out.push(v.phase === 'betting' ? '<div class="rules">베팅 마감까지 <span data-left="bet"></span>초 · 모두 준비되면 바로 시작해요</div>' : `<div class="rules">칩을 눌러 베팅하세요 · 최소 5 · 최대 ${fmt(max)}</div>`);
+  return out.join('');
+}
+function renderUI() {
+  $('conn').hidden = connected;
+  $('soundBtn').innerHTML = SND.on ? ICON.soundOn : ICON.soundOff; $('soundBtn').classList.toggle('off', !SND.on);
+  $('voiceBtn').innerHTML = ICON.voice; $('voiceBtn').classList.toggle('off', !VOICE.on); $('voiceBtn').hidden = !VOICE.ok;
+  const me = V && V.me;
+  $('bankBox').hidden = !me;
+  if (me) { $('rankTxt').textContent = me.rank ? `CHIPS · ${me.rank}위` : 'CHIPS'; if (shownBank == null) { shownBank = me.chips; $('bank').textContent = fmt(me.chips); } }
+  if (V && V.shoe) $('meta').textContent = `GYBM · 6덱 · 남은 카드 ${Math.round(V.shoe.left * 100)}%`;
+  const dock = $('dock'), html = dockHTML();
+  if (dock._h !== html) {
+    const focusId = document.activeElement && document.activeElement.id, keep = {};
+    ['liName', 'liPin'].forEach(id => { const el = $(id); if (el) keep[id] = el.value; });
+    dock.innerHTML = html; dock._h = html;
+    Object.entries(keep).forEach(([id, val]) => { const el = $(id); if (el) el.value = val; });
+    if (focusId && $(focusId)) $(focusId).focus();
+  }
+  tickTimers();
+  // my turn: a chime once per turn (the dealer also says it)
+  const tk = V && V.turn && V.turn.seat === mySeat() ? `${V.round}:${V.turn.hand}` : '';
+  if (tk && tk !== ui.lastTurnKey) ui.rec = '';
+  ui.lastTurnKey = tk;
+  if (!$('menuSheet').hidden) renderMenu();
+}
+function tickTimers() {
+  document.querySelectorAll('[data-left]').forEach(el => { const t = String(Math.ceil(leftMs(el.dataset.left) / 1000)); if (el.textContent !== t) el.textContent = t; });
+  document.querySelectorAll('[data-bar]').forEach(el => { const tot = V && V.turn ? V.turn.total : 1; el.style.transform = `scaleX(${clamp(leftMs(el.dataset.bar) / tot, 0, 1)})`; });
+}
+function tickBank(dt) {
+  const me = V && V.me; if (!me || shownBank == null || shownBank === me.chips) return;
+  const diff = me.chips - shownBank, step = Math.sign(diff) * Math.max(1, Math.ceil(Math.abs(diff) * Math.min(1, dt * 6)));
+  shownBank = Math.abs(step) >= Math.abs(diff) ? me.chips : shownBank + step; $('bank').textContent = fmt(shownBank);
+}
+function renderMenu() {
+  const v = V, me = v && v.me;
+  $('soundToggle').textContent = SND.on ? '효과음 끄기' : '효과음 켜기';
+  $('voiceToggle').textContent = VOICE.on ? '딜러 음성 끄기' : '딜러 음성 켜기'; $('voiceToggle').hidden = !VOICE.ok;
+  $('leaveBtn').hidden = !(me && me.seat != null && !me.leaving);
+  const top = (v && v.top) || [];
+  const html = (me ? `<b>${esc(me.name)}</b> · 칩 <b>${fmt(me.chips)}</b>${me.rank ? ` · 랭킹 <b>${me.rank}위</b>` : ''}<br>` : '홀덤 계정으로 들어오면 같은 칩으로 플레이해요.<br>')
+    + (top.length ? `<h3 style="margin:8px 0 4px">TOP 5 · 홀덤과 같은 랭킹</h3><ol class="top5">${top.map((r, i) => `<li class="${me && r.name === me.name ? 'me' : ''}"><i>${i + 1}</i><span>${esc(r.name)}</span><b>${fmt(r.chips)}</b></li>`).join('')}</ol>` : '');
+  if ($('menuInfo')._h !== html) { $('menuInfo').innerHTML = html; $('menuInfo')._h = html; }
+}
+$('dock').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.chip) return bet(+b.dataset.chip);
+  if (b.dataset.act) return act(b.dataset.act);
+  const v = V, d = b.dataset.do;
+  if (d === 'hint') hint();
+  else if (d === 'ready') simple('bj:ready', { on: true });
+  else if (d === 'unready') simple('bj:ready', { on: false });
+  else if (d === 'rebet') simple('bj:rebet').then(r => r.ok && SND.play('chip'));
+  else if (d === 'clear') simple('bj:clear');
+  else if (d === 'leave') simple('bj:leave');
+  else if (d === 'stay') simple('bj:sit', { seat: v.me.seat });
+  else if (d === 'recover') simple('recover').then(r => { if (r.ok) { say(`칩 ${fmt(r.amount)}개 복구해 드렸어요. 이번엔 꼭 이겨봐요!`, 'happy', { voice: true }); } });
+  else if (d === 'sitAny') { const free = [2, 1, 3, 0, 4].find(i => !v.seats[i]); if (free != null) sit(free); }
+  else if (d === 'holdem') goHoldem();
+  else if (d === 'resume') { kicked = null; renderUI(); resume(); }
+  else if (d === 'relogin') { kicked = null; resuming = false; renderUI(); }
+});
+$('dock').addEventListener('submit', async e => {
+  if (e.target.id !== 'loginForm') return;
+  e.preventDefault();
+  const name = $('liName').value.trim(), pin = $('liPin').value, err = $('liErr');
+  if (!name || !/^\d{4}$/.test(pin)) { err.textContent = '닉네임과 숫자 4자리 PIN을 넣어 주세요.'; return; }
+  err.textContent = '';
+  const r = await call('login', { name, pin });
+  if (!r.ok) { if ($('liErr')) $('liErr').textContent = r.msg || '들어가지 못했어요.'; return; }
+  lsSet('token', r.token); lsSet('name', r.name); myToken = r.token; kicked = null;
+  greeted = true;
+  say(r.isNew ? `${r.name}님, 처음 오셨네요! 칩 ${fmt(r.chips)}개로 시작해요.` : `${r.name}님, 다시 오셨네요. 빈 자리에 앉아 주세요.`, 'happy', { voice: true });
+});
+$('brandBtn').addEventListener('click', () => { $('menuSheet').hidden = false; renderMenu(); });
+$('menuBtn').addEventListener('click', () => { $('menuSheet').hidden = false; renderMenu(); });
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => ($(b.dataset.close).hidden = true)));
+$('menuSheet').addEventListener('click', e => { if (e.target === $('menuSheet')) $('menuSheet').hidden = true; const g = e.target.closest('[data-go]'); if (g && g.dataset.go === 'holdem') { $('menuSheet').hidden = true; goHoldem(); } });
+$('leaveBtn').addEventListener('click', async () => { $('menuSheet').hidden = true; const r = await simple('bj:leave'); if (r.ok && r.pending) toast('이번 판이 끝나면 자리에서 일어나요.'); });
+function toggleSound() { SND.on = !SND.on; lsSet('sound', SND.on ? '1' : '0'); if (SND.on) SND.play('chip'); renderUI(); }
+function toggleVoice() { VOICE.on = !VOICE.on; lsSet('voice', VOICE.on ? '1' : '0'); if (VOICE.on) { VOICE.prime(); VOICE.say('음성 안내를 켰어요.'); } else try { speechSynthesis.cancel(); } catch {} renderUI(); }
+$('soundBtn').addEventListener('click', toggleSound); $('soundToggle').addEventListener('click', toggleSound);
+$('voiceBtn').addEventListener('click', toggleVoice); $('voiceToggle').addEventListener('click', toggleVoice);
+addEventListener('keydown', e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|BUTTON/.test((e.target && e.target.tagName) || '')) return;
+  const k = e.key.toLowerCase(), v = V; if (!v || !v.me) return;
+  if (v.opts) { const m = { h: 'hit', s: 'stand', d: 'double', p: 'split' }[k]; if (m) { e.preventDefault(); act(m); } else if (k === 'i') hint(); }
+  else if ((k === 'enter' || k === ' ') && v.me.seat != null && ['idle', 'betting', 'over'].includes(v.phase)) {
+    e.preventDefault(); const st = v.seats[v.me.seat];
+    if (st && st.bet && !st.ready) simple('bj:ready', { on: true }); else if (st && !st.bet && v.me.lastBet) simple('bj:rebet');
+  }
+});
+
+/* ---------- camera: behind your seat, or the whole table when watching ----------
+   Watching: from behind the middle seat, high enough to take in all five circles.
+   Seated: orbit round to your seat (all the way on a phone) and aim between your cards and the dealer's. */
+const CAM = {
+  over: { tall: { fov: 58, h: 27, d: 13.5, t: 2.6 }, wide: { fov: 40, h: 14.5, d: 13.2, t: 2.3 } },
+  seat: { tall: { fov: 50, h: 13.6, d: 9.2, w: .58, kc: 1 }, wide: { fov: 40, h: 14.4, d: 12.6, w: .44, kc: .5 } },
+};
+const camState = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), fov: 50, init: false };
+// a short landscape phone leaves little room between the HUD and the dock: come in closer
+const SHORT = { near: .72, w: .36, t: 3.7 };
+function camPose(s, k) {
+  const pr = (m, key) => lerp(CAM[m].tall[key], CAM[m].wide[key], k), short = innerHeight < 520;
+  const near = short ? SHORT.near : 1;
+  if (s == null) {
+    const tgt = new THREE.Vector3(0, 0, ZE + (short ? SHORT.t : pr('over', 't')));
+    return { tgt, pos: tgt.clone().add(new THREE.Vector3(0, pr('over', 'h') * near, pr('over', 'd') * near)), fov: pr('over', 'fov') };
+  }
+  const phi = (Math.PI / 2 - TH[s]) * pr('seat', 'kc');
+  const tgt = new THREE.Vector3(0, 0, DEALER_Z).lerp(at(s, RC), short ? SHORT.w : pr('seat', 'w'));
+  const pos = tgt.clone().add(new THREE.Vector3(Math.sin(phi) * pr('seat', 'd') * near, pr('seat', 'h') * near, Math.cos(phi) * pr('seat', 'd') * near));
+  return { tgt, pos, fov: pr('seat', 'fov') };
+}
+function placeCamera(dt) {
+  const k = clamp((innerWidth / innerHeight - .5) / (1.5 - .5), 0, 1), goal = camPose(mySeat(), k);
+  const e = camState.init ? 1 - Math.exp(-dt * 2.6) : 1; camState.init = true;
+  camState.pos.lerp(goal.pos, e); camState.tgt.lerp(goal.tgt, e); camState.fov = lerp(camState.fov, goal.fov, e);
+  camera.fov = camState.fov; camera.position.copy(camState.pos); camTarget.copy(camState.tgt);
+  camera.lookAt(camTarget); camera.updateProjectionMatrix();
+}
+function frame() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', frame);
+
+/* ---------- loop ---------- */
+let last = performance.now(), lastUi = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (document.visibilityState !== 'visible') { last = now; return; }
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  stepTweens(now); robot.update(now / 1000, dt); placeCamera(dt); placeGlow(now / 1000); tickBank(dt);
+  renderer.render(scene, camera); placeTags(now);
+  if (now - lastUi > 200) { lastUi = now; tickTimers(); }
+}
+
+/* ---------- boot ---------- */
+(async () => {
+  try { await Promise.race([Promise.all(['600 56px Oswald', 'italic 800 60px "Playfair Display"', '700 16px "IBM Plex Sans KR"'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch {}
+  BACK_MAT = new THREE.MeshStandardMaterial({ map: texOf(backCanvas()), roughness: .5 });
+  buildTable(); buildRack(); buildShoe(); setShoe(1);
+  frame(); placeCamera(0); requestAnimationFrame(loop);
+  sceneReady = true; renderUI(); runSync();
+  setTimeout(() => $('boot').classList.add('done'), 150);
+  setTimeout(greet, 900);
+  window.__bj = { get V() { return V; }, D, busy: () => syncing || tweens.size > 0, camera, CAM, SHORT, camState, frame, pt: (x, y, z) => toScreen(new THREE.Vector3(x, y, z)), seatPt: (s, r = RC) => toScreen(at(s, r)), chin: () => toScreen(robot.chin()),
+    probe: (seat) => { const s = seat != null ? seat : (mySeat() != null ? mySeat() : 2), q = v => { const o = toScreen(v); return [Math.round(o.x), Math.round(o.y)]; };
+      return { head: q(new THREE.Vector3(0, 3.9, ZE - 1.45)), dealer: q(new THREE.Vector3(0, 0, DEALER_Z)), cards: q(at(s, RC)), bet: q(at(s, RB)), tag: q(tagSpot(s)), rail: q(at(s, R + .9)),
+        s0: q(at(0, RB)), s4: q(at(4, RB)), cardW: Math.round(toScreen(at(s, RC, .5)).x - toScreen(at(s, RC, -.5)).x), dock: Math.round($('dock').getBoundingClientRect().top) }; } };
+})();
+})();
+</script>
+</body>
+</html>

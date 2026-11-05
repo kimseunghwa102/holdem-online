@@ -82,6 +82,20 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
 .brand b{display:block;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:22px;color:var(--gold);line-height:1}
 .brand b span{font-family:var(--f-body);font-style:normal;font-weight:700;font-size:16px;color:var(--ink);margin-left:6px}
 .brand small{display:block;font-family:var(--f-num);font-size:11.5px;letter-spacing:.08em;color:var(--dim);margin-top:5px}
+button.brand{display:block;text-align:left;padding:0;min-width:0}
+.brand .chev{display:inline-block;width:15px;height:15px;margin-left:4px;vertical-align:1px;fill:none;stroke:var(--dim);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.games{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gcard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:14px;text-align:left;min-height:100px;
+  background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.gcard b{font-family:var(--f-display);font-style:italic;font-weight:800;font-size:20px;color:var(--gold);display:flex;align-items:center;gap:6px}
+.gcard b em{font-family:var(--f-num);font-style:normal;font-weight:500;font-size:9.5px;letter-spacing:.14em;color:#03242b;background:#62e3f2;border-radius:4px;padding:2px 4px 1px}
+.gcard span{font-size:12px;color:var(--muted);line-height:1.45;word-break:keep-all}
+#gameNote{word-break:keep-all}
+.gcard.on{box-shadow:inset 0 0 0 1.5px var(--gold);background:rgba(232,184,92,.1)}
+.gcard.on span::after{content:"지금 여기";display:block;color:var(--gold)}
+.gcard.bj{box-shadow:inset 0 0 0 1.5px rgba(98,227,242,.6);background:rgba(98,227,242,.07)}
+.lgame{align-self:center;font-size:13px;color:#62e3f2;text-decoration:none;padding:6px 10px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(98,227,242,.35)}
+.rank .bjtag{display:inline-block;font-style:normal;font-family:var(--f-num);font-size:9.5px;letter-spacing:.1em;color:#03242b;background:#62e3f2;border-radius:4px;padding:1px 4px;margin-left:6px;vertical-align:1px}
 .tbtns{display:flex;gap:6px;flex:none}
 .tbtn{height:34px;min-width:34px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .tbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -351,12 +365,13 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
       <div class="err" id="liErr"></div>
       <button type="submit" class="gold-btn" id="liBtn">입장하기</button>
     </form>
+    <a class="lgame" id="lgame" href="/blackjack">미니게임 · 블랙잭 테이블 (베타) →</a>
     <div class="ltop" id="ltop"></div>
   </section>
 
   <section class="game" id="game" hidden>
     <header class="top">
-      <div class="brand"><b>GYBM<span>홀덤 테이블</span></b><small id="meta"></small></div>
+      <button class="brand" id="brandBtn" type="button" aria-label="게임 선택 열기"><b>GYBM<span>홀덤 테이블</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></b><small id="meta"></small></button>
       <div class="lb" id="lb" role="button" tabindex="0" aria-label="랭킹 TOP 5 · 누르면 전체 랭킹"></div>
       <div class="tbtns">
         <button class="tbtn icon" id="soundBtn" type="button" aria-label="소리 켜기/끄기"></button>
@@ -382,11 +397,23 @@ input:focus{border-color:rgba(232,184,92,.7);outline:none;box-shadow:0 0 0 3px r
   <div class="sheet">
     <h2>메뉴</h2>
     <div class="notice" id="menuInfo"></div>
+    <button type="button" class="sbtn" id="gameOpen">게임 바꾸기 · 블랙잭 (베타)</button>
     <button type="button" class="sbtn" id="soundToggle"></button>
     <button type="button" class="sbtn" id="voiceToggle"></button>
     <button type="button" class="sbtn" id="adminOpen">방장 설정</button>
     <button type="button" class="sbtn dng" id="logoutBtn">로그아웃 (이 기기에서)</button>
     <button type="button" class="sbtn" data-close="menuSheet">닫기</button>
+  </div>
+</div>
+<div class="overlay" id="gameSheet" hidden>
+  <div class="sheet" role="dialog" aria-label="게임 선택">
+    <h2>게임 선택</h2>
+    <div class="games">
+      <button class="gcard on" type="button" data-game="holdem"><b>홀덤</b><span>5인 텍사스 홀덤 · AI 알파</span></button>
+      <button class="gcard bj" type="button" data-game="bj"><b>블랙잭<em>BETA</em></b><span>AI 딜러 · 최대 5명</span></button>
+    </div>
+    <div class="notice" id="gameNote"></div>
+    <button type="button" class="sbtn" data-close="gameSheet">닫기</button>
   </div>
 </div>
 <div class="overlay" id="adminSheet" hidden>
@@ -444,7 +471,7 @@ function lsGet(k) { try { return localStorage.getItem(LS + k); } catch { return 
 function lsSet(k, v) { try { v == null ? localStorage.removeItem(LS + k) : localStorage.setItem(LS + k, v); } catch {} }
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-let V = null, P = null, recvAt = 0, connected = false, resuming = !!lsGet('token'), lastTurn = '', adminKey = '';
+let V = null, P = null, recvAt = 0, connected = false, resuming = !!lsGet('token'), lastTurn = '', adminKey = '', myToken = lsGet('token');
 const ui = { raiseOpen: false, raiseTo: 0, raiseKey: '', barSig: '', resetArm: 0, armFor: '' };
 
 let toastT;
@@ -556,12 +583,20 @@ function call(ev, msg) {
 sock.on('connect', async () => {
   connected = true;
   const token = lsGet('token');
-  if (token) { resuming = true; show(); const r = await call('resume', { token }); resuming = false; if (!r.ok) lsSet('token', null); }
+  if (token) {
+    resuming = true; show(); const r = await call('resume', { token }); resuming = false;
+    if (r.ok) myToken = token; else if (r.msg == null && lsGet('token') === token) lsSet('token', null); // only when the server says no
+  }
   show();
 });
 sock.on('disconnect', () => { connected = false; show(); });
 sock.on('connect_error', () => { connected = false; show(); });
-sock.on('kicked', () => { lsSet('token', null); toast('다른 기기에서 같은 닉네임으로 들어와서 이 화면은 로그아웃됐어요.'); });
+sock.on('kicked', m => {
+  // the blackjack page shares this login: another tab that resumed with the same token keeps it working
+  if (m && m.keepToken) { toast('다른 탭에서 같은 계정으로 열었어요. 이 화면에서 계속하려면 새로고침하세요.'); return; }
+  if (lsGet('token') === myToken) lsSet('token', null);
+  toast('다른 기기에서 같은 닉네임으로 들어와서 이 화면은 로그아웃됐어요.');
+});
 sock.on('state', v => {
   if (resuming && !v.me && V && V.me) return; // keep the last table on screen while the session resumes
   P = V; V = v; recvAt = Date.now(); show();
@@ -620,9 +655,11 @@ function show() {
   $('login').hidden = inGame || resuming;
   $('game').hidden = !inGame;
   $('demoPill').hidden = !DEMO;
+  $('lgame').hidden = DEMO;
   if (inGame) {
     if (!built) buildTable();
     render();
+    if (!DEMO && !lsGet('bjHint')) { lsSet('bjHint', '1'); setTimeout(() => toast('새 미니게임 블랙잭(베타)이 열렸어요. 왼쪽 위 GYBM ▾ 을 눌러 보세요.'), 3400); }
     const h = V.hand, turnKey = h && h.opts ? `${h.no}-${h.street}-${h.toAct}-${h.opts.currentBet}` : '';
     if (turnKey && turnKey !== lastTurn) { SND.play('turn'); try { navigator.vibrate && navigator.vibrate(60); } catch {} }
     lastTurn = turnKey;
@@ -990,7 +1027,7 @@ setInterval(tick, 500);
 function renderRank() {
   const rows = (RANK.length ? RANK : V.ranking || []).map((r, i) => {
     const me = V.me && r.name === V.me.name;
-    return `<tr class="${me ? 'me' : ''}"><td><span class="medal ${i < 3 ? 'm' + (i + 1) : 'mx'}">${i + 1}</span></td><td>${esc(r.name)}${r.online ? '<i class="dot"></i>' : ''}</td><td>${fmt(r.chips)}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${fmt(r.net)}</td><td>${r.handsWon}/${r.handsPlayed}</td><td>${r.busts}</td></tr>`;
+    return `<tr class="${me ? 'me' : ''}"><td><span class="medal ${i < 3 ? 'm' + (i + 1) : 'mx'}">${i + 1}</span></td><td>${esc(r.name)}${r.online ? '<i class="dot"></i>' : ''}${r.bj ? '<i class="bjtag">BJ</i>' : ''}</td><td>${fmt(r.chips)}</td><td class="${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}">${r.net > 0 ? '+' : ''}${fmt(r.net)}</td><td>${r.handsWon}/${r.handsPlayed}</td><td>${r.busts}</td></tr>`;
   }).join('');
   $('rankTable').innerHTML = `<thead><tr><th></th><th>이름</th><th>칩</th><th>손익</th><th>승/판</th><th>파산</th></tr></thead><tbody>${rows || '<tr><td colspan="6" style="font-family:var(--f-body);color:var(--muted);text-align:left">아직 아무도 없어요.</td></tr>'}</tbody>`;
 }
@@ -1009,7 +1046,7 @@ $('loginForm').addEventListener('submit', async e => {
   const r = await call('login', { name, pin });
   $('liBtn').disabled = false;
   if (!r.ok) { $('liErr').textContent = r.msg || '입장하지 못했어요.'; return; }
-  lsSet('token', r.token); lsSet('name', r.name);
+  lsSet('token', r.token); lsSet('name', r.name); myToken = r.token;
   $('liPin').value = '';
   show();
   toast(r.isNew ? `환영해요! 시작 칩 ${fmt(r.chips)}` : `다시 왔네요. 저장된 칩 ${fmt(r.chips)}`);
@@ -1022,6 +1059,34 @@ $('rankBtn').addEventListener('click', () => { $('rankSheet').hidden = false; re
 $('lb').addEventListener('click', () => { $('rankSheet').hidden = false; renderRank(); });
 $('lb').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('rankSheet').hidden = false; renderRank(); } });
 $('menuBtn').addEventListener('click', () => { $('menuSheet').hidden = false; renderMenu(); });
+
+/* ---------------- game switch: holdem ⇄ blackjack mini-game (same account, same chips) ---------------- */
+let bjArm = 0;
+function openGames() { bjArm = 0; $('menuSheet').hidden = true; $('gameSheet').hidden = false; paintGames(); }
+function paintGames() {
+  const me = V && V.me;
+  $('gameNote').innerHTML = DEMO ? '미리보기에서는 블랙잭을 열 수 없어요. 실제 링크에서 열어 주세요.'
+    : me && me.seat != null ? '블랙잭으로 가면 홀덤 자리에서 일어나요. 칩은 그대로 가져가요.'
+    : '블랙잭도 <b>같은 계정 · 같은 칩</b>이에요. 이기고 진 칩이 홀덤 랭킹에 바로 반영돼요.';
+}
+async function goBlackjack() {
+  if (DEMO) { toast('미리보기에서는 블랙잭을 열 수 없어요.'); return; }
+  const me = V && V.me, h = V && V.hand;
+  if (me && me.seat != null) {
+    const q = h && !h.over && h.ps[me.seat];
+    if (q && q.current && !q.folded && Date.now() - bjArm > 6000) {
+      bjArm = Date.now(); $('gameNote').innerHTML = '<b>지금 핸드 진행 중이에요.</b> 한 번 더 누르면 폴드하고 블랙잭으로 가요.'; return;
+    }
+    const r = await call('stand'); if (!r.ok && r.msg) { toast(r.msg); return; }
+  }
+  location.href = '/blackjack';
+}
+$('brandBtn').addEventListener('click', openGames);
+$('gameOpen').addEventListener('click', openGames);
+$('gameSheet').addEventListener('click', e => {
+  const g = e.target.closest('[data-game]'); if (!g) return;
+  if (g.dataset.game === 'bj') goBlackjack(); else $('gameSheet').hidden = true;
+});
 $('logoutBtn').addEventListener('click', async () => { await call('logout'); lsSet('token', null); $('menuSheet').hidden = true; show(); });
 $('tw').addEventListener('click', async e => {
   const b = e.target.closest('[data-sit]'); if (!b) return;
