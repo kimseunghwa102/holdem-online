@@ -101,8 +101,6 @@ button.brand{display:block;text-align:left;padding:0;min-width:0}
 .tbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tbtn.icon{padding:0}
 /* TOP 5 strip: its own row on phones, inside the header row on wide screens */
-.ledslot{order:4;flex:1 0 100%;min-width:0;margin-top:2px}
-.ledslot:has(.led[hidden]){display:none}
 .lb{order:3;flex:1 0 100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;padding:2px;border-radius:12px;background:rgba(0,0,0,.32);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
 .lb:empty{display:none}
 .lbc{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:1px 4px;padding:3px 6px;border-radius:10px;min-width:0}
@@ -432,7 +430,6 @@ body.g3.ingame{overflow:hidden;overscroll-behavior:none}
         <button class="tbtn" id="rankBtn" type="button">랭킹</button>
         <button class="tbtn" id="menuBtn" type="button">메뉴</button>
       </div>
-      <div class="ledslot" id="ledSlot"></div>
     </header>
     <div class="stage" id="stage"><div class="tw" id="tw"></div></div>
     <section class="hud"><div class="mycards" id="mycards"></div><div class="minfo" id="minfo"></div></section>
@@ -480,7 +477,6 @@ body.g3.ingame{overflow:hidden;overscroll-behavior:none}
     <div class="msg" id="adMsg"></div>
     <div id="adBody" hidden style="display:flex;flex-direction:column;gap:12px">
       <div class="notice" id="adOwner"></div>
-      <button type="button" class="sbtn" id="noticeEdit">공지 수정 · LED 전광판</button>
       <h3>테이블 설정</h3>
       <div class="grid3">
         <label class="field">시작 칩<input id="cfgStart" type="number" inputmode="numeric"></label>
@@ -515,7 +511,6 @@ body.g3.ingame{overflow:hidden;overscroll-behavior:none}
 <div class="fx" id="fx"></div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="/led.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
@@ -1677,7 +1672,7 @@ const G3 = (() => {
     fitDirty = true;
   }
   addEventListener('resize', resize);
-  if (window.ResizeObserver) { const ro = new ResizeObserver(() => (fitDirty = true)); ro.observe(document.documentElement); if ($('stage')) ro.observe($('stage')); }
+  if (window.ResizeObserver) new ResizeObserver(() => (fitDirty = true)).observe(document.documentElement);
 
   /* ---------- loop ---------- */
   let lastDraw = 0;
@@ -1735,7 +1730,6 @@ function show() {
   if (inGame) {
     if (!built) buildTable();
     render();
-    if (window.GYBMNotice) GYBMNotice.update(V.notice, { canEdit: !!(V.me.isAdmin || adminKey), idle: V.me.seat == null, save: text => call('admin', { key: adminKey, op: 'notice', text }) });
     if (!DEMO && !lsGet('bjHint')) { lsSet('bjHint', '1'); setTimeout(() => toast('새 미니게임 블랙잭(베타)이 열렸어요. 왼쪽 위 GYBM ▾ 을 눌러 보세요.'), 3400); }
     const h = V.hand, turnKey = h && h.opts ? `${h.no}-${h.street}-${h.toAct}-${h.opts.currentBet}` : '';
     if (turnKey && turnKey !== lastTurn) { SND.play('turn'); try { navigator.vibrate && navigator.vibrate(60); } catch {} }
@@ -2234,9 +2228,6 @@ async function adminCheck() {
   $('aiToggle').textContent = c.ai ? 'AI 플레이어 켜짐 · 누르면 끄기' : 'AI 플레이어 꺼짐 · 누르면 켜기';
   $('tgList').innerHTML = r.names.map(n => `<option value="${esc(n)}">`).join('');
 }
-if (window.GYBMNotice) GYBMNotice.mount($('ledSlot'));
-$('noticeEdit').hidden = !window.GYBMNotice;
-$('noticeEdit').addEventListener('click', () => { $('adminSheet').hidden = true; GYBMNotice.update(V && V.notice, { canEdit: true, idle: false, save: text => call('admin', { key: adminKey, op: 'notice', text }) }); GYBMNotice.edit(); });
 $('aiToggle').addEventListener('click', async () => { const r = await adm({ op: 'ai', on: !ui.aiOn }); if (r.ok) { await adminCheck(); $('adMsg').textContent = r.msg; } });
 function armed(btn, key, label, armedLabel) {
   if (Date.now() - ui.resetArm > 4000 || ui.armFor !== key) { ui.resetArm = Date.now(); ui.armFor = key; btn.textContent = armedLabel; setTimeout(() => (btn.textContent = label), 4000); return false; }
