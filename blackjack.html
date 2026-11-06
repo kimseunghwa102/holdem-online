@@ -39,6 +39,10 @@ input:focus{outline:none;border-color:var(--gold)}
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   background:linear-gradient(180deg,rgba(6,8,12,.86),rgba(6,8,12,0));pointer-events:none}
 .hud>*{pointer-events:auto}
+.hud{flex-wrap:wrap;row-gap:8px}
+.hud .ledslot{order:3;flex:1 0 100%;min-width:0}
+.hud .brand{flex:1 1 0}
+.ledslot:has(.led[hidden]){display:none}
 .brand{min-width:0;text-align:left;padding:2px 0}
 .brand b{display:flex;align-items:center;gap:6px;font-family:var(--f-display);font-style:italic;font-weight:800;font-size:22px;line-height:1;color:var(--gold);white-space:nowrap}
 .brand b span{font-family:var(--f-body);font-style:normal;font-weight:700;font-size:16px;color:var(--ink)}
@@ -247,6 +251,7 @@ input:focus{outline:none;border-color:var(--gold)}
     <button class="ibtn" id="voiceBtn" type="button" aria-label="딜러 음성 켜기/끄기"></button>
     <button class="ibtn" id="menuBtn" type="button" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
   </div>
+  <div class="ledslot" id="ledSlot"></div>
 </header>
 <div class="conn" id="conn" hidden>서버에 연결하는 중… 무료 서버는 깨어나는 데 1분쯤 걸려요.</div>
 <section class="dock"><div id="dock"></div></section>
@@ -278,6 +283,7 @@ input:focus{outline:none;border-color:var(--gold)}
 <div class="boot" id="boot"><div><b>GYBM Blackjack</b><span id="bootMsg">테이블을 준비하는 중…</span></div></div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/led.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
@@ -808,6 +814,7 @@ sock.on('kicked', m => {
   if (!(m && m.keepToken) && lsGet('token') === myToken) lsSet('token', null);
   kicked = m && m.keepToken ? 'tab' : 'device'; renderUI();
 });
+if (window.GYBMNotice) GYBMNotice.mount($('ledSlot'));
 sock.on('bj:state', onState);
 
 /* ================= what the table shows ================= */
@@ -1021,6 +1028,7 @@ function greet() {
 function onState(v) {
   if (resuming && !v.me && V && V.me) return; // keep the last view while the session resumes
   V = v; recvAt = performance.now();
+  if (window.GYBMNotice) GYBMNotice.update(v.notice, { canEdit: !!(v.me && v.me.isAdmin), idle: !(v.me && v.me.seat != null), save: text => call('admin', { op: 'notice', text }) });
   v._lines = readLog(v);
   if (want && want !== shown && want !== cur) v._lines = want._lines.concat(v._lines); // that state was skipped: keep its lines
   want = v;

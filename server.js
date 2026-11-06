@@ -18,10 +18,24 @@ const MAX_PLAYERS = 300;           // accounts kept in the ledger
 const OFFLINE_STAND_MS = +process.env.OFFLINE_STAND_MS || 120000; // offline this long while not in a hand → stood up
 const NEXT_HAND_MS = +process.env.NEXT_HAND_MS || 6000; // pause between hands so everyone sees the result
 const SWEEP_MS = +process.env.SWEEP_MS || 15000;      // how often seats left behind are checked
+// notice board shown as an LED ticker on both games; the room owner edits it. This text is put up once on a table that has none yet.
+const NOTICE_MAX = 1500;
+const NOTICE_SEED = `"비콘 찍으세요"
+
+- 다음주 숙박비 신청
+- 11.6(금) 각 강의실 대청소 시행 예정
+ -> 수업 종료 후 환경부 주도하에 모든 인원 각 강의실 청소 + MBA 강의실 청소
+- 11.7(토) BMW 지사장 선배님 특강 예정
+ -> 모두 필참
+- 11.8(일) 홈커밍데이 예정
+ -> 모두 필참
+- 병원 가는 인원
+ -> 처방전 반드시 가지고 있기`;
 
 /* ---------- state ---------- */
 // admin = name key of the room owner (the first account ever registered, transferable)
-const S = { cfg: { ...DEFAULT_CFG }, players: {}, admin: null, seats: Array(E.SEATS).fill(null), button: -1, handNo: 0, hand: null, nextAt: 0 };
+// notice = { text, at, by } (text '' = no notice)
+const S = { cfg: { ...DEFAULT_CFG }, players: {}, admin: null, notice: null, seats: Array(E.SEATS).fill(null), button: -1, handNo: 0, hand: null, nextAt: 0 };
 const RT = new Map(); // per-player runtime (never persisted): sock, lastSeen, fails, lockUntil, timeouts
 const rt = k => { let r = RT.get(k); if (!r) { r = { sock: null, lastSeen: 0, fails: 0, lockUntil: 0, timeouts: 0 }; RT.set(k, r); } return r; };
 // each account has one live socket, open on either the holdem page or the blackjack page
@@ -38,7 +52,7 @@ function snapshot() {
   // chips committed to an unfinished hand are saved as if refunded, so a restart never eats a pot
   if (S.hand && !S.hand.over) S.hand.ps.forEach(q => { if (q && players[q.pid]) players[q.pid].chips += q.total; });
   for (const [k, amt] of Object.entries(BJ.committed())) if (players[k]) players[k].chips += amt; // same for blackjack bets
-  return { v: 1, cfg: S.cfg, admin: S.admin, players };
+  return { v: 1, cfg: S.cfg, admin: S.admin, notice: S.notice, players };
 }
 let saveT = null, saving = false, dirty = false;
 function saveSoon() { dirty = true; if (!saveT) saveT = setTimeout(flush, 800); }
@@ -178,6 +192,7 @@ function viewFor(key, rank) {
     cfg: { start: S.cfg.start, sb: S.cfg.sb, bb: S.cfg.bb, recoverPct: S.cfg.recoverPct, recoverMin: S.cfg.recoverMin, longEvery: S.cfg.longEvery, longHours: S.cfg.longHours, turnSecs: S.cfg.turnSecs, ai: !!S.cfg.ai },
     adminKeyEnabled: !!ADMIN_KEY,
     owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null,
+    notice: me ? S.notice : null, // members only
     me: me ? { name: me.name, isAdmin: key === S.admin, chips: me.chips, invested: me.invested || 0, seat: me.seat ?? null, away: !!me.away, busts: me.busts || 0,
       recovers: me.recovers || 0, ...recoverState(key, me, now), bj: me.bjSeat != null } : null,
     seats: S.seats.map(k => { const p = k && S.players[k]; return p ? { name: p.name, chips: p.chips, away: !!p.away, online: k === AI.KEY || atHoldem(k), me: k === key, bot: k === AI.KEY } : null; }),
@@ -213,6 +228,8 @@ function bjViewFor(key, rank) {
   }
   v.top = rank.slice(0, 5).map(r => ({ name: r.name, chips: r.chips }));
   v.rules = { recoverPct: S.cfg.recoverPct, recoverMin: S.cfg.recoverMin, longEvery: S.cfg.longEvery, longHours: S.cfg.longHours };
+  v.notice = me ? S.notice : null;
+  if (v.me) v.me.isAdmin = key === S.admin;
   return v;
 }
 let io;
@@ -354,6 +371,13 @@ function setupSockets(server) {
       const target = () => { const n = validName(msg.name); return n ? [nameKey(n), S.players[nameKey(n)]] : [null, null]; };
       switch (msg.op) {
         case 'check': return ack({ ok: true, cfg: S.cfg, owner: S.admin && S.players[S.admin] ? S.players[S.admin].name : null, names: Object.entries(S.players).filter(([k]) => k !== AI.KEY).map(([, p]) => p.name).sort() });
+        case 'notice': {
+          if (typeof msg.text !== 'string') return ack({ ok: false });
+          const text = msg.text.normalize('NFC').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+          if (text.length > NOTICE_MAX) return ack({ ok: false, msg: `공지는 ${NOTICE_MAX.toLocaleString()}자까지예요.` });
+          S.notice = { text, at: Date.now(), by: byOwner ? S.players[S.admin].name : '관리자' };
+          ack({ ok: true, msg: text ? '공지를 올렸어요. 모두의 화면에 바로 떠요.' : '공지를 내렸어요.' }); return changed();
+        }
         case 'ai': {
           S.cfg.ai = !!msg.on;
           ack({ ok: true, msg: S.cfg.ai ? `${AI.NAME}를 켰어요. 빈 자리가 있으면 바로 앉아요.` : `${AI.NAME}를 껐어요. 하던 핸드가 끝나면 일어나요.` }); return changed();
@@ -440,6 +464,8 @@ setInterval(() => {
     S.admin = data.admin && S.players[data.admin] ? data.admin : null;
     Object.values(S.players).forEach(p => { p.seat = null; p.bjSeat = null; p.away = false; });
   } else S.cfg.rulesV = RULES_V;
+  if (data && data.notice && typeof data.notice.text === 'string') S.notice = data.notice;
+  else if (!data || !('notice' in data)) { S.notice = { text: NOTICE_SEED, at: Date.now(), by: null }; saveSoon(); }
   aiTick(); // the AI takes its seat right away
   const app = express();
   app.disable('x-powered-by');
@@ -447,6 +473,7 @@ setInterval(() => {
   const INDEX = path.join(__dirname, 'index.html'), BJ_PAGE = path.join(__dirname, 'blackjack.html'); // only these pages are served; server code stays private
   app.get(['/', '/index.html'], (_, res) => res.sendFile(INDEX));
   app.get(['/blackjack', '/blackjack.html'], (_, res) => res.sendFile(BJ_PAGE));
+  app.get('/led.js', (_, res) => res.sendFile(path.join(__dirname, 'led.js'), { maxAge: 0 })); // the notice ticker, shared by both pages
   const server = http.createServer(app);
   setupSockets(server);
   server.listen(PORT, () => console.log(`holdem on :${PORT} · store ${store.kind} · admin ${ADMIN_KEY ? 'on' : 'off'}`));
